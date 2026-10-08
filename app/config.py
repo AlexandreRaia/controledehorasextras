@@ -1,0 +1,41 @@
+"""Configuracao lida do ambiente (.env)."""
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _int(name, default=None):
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+class Config:
+    SECRET_KEY = os.getenv("SECRET_KEY") or "dev-inseguro-troque-no-env"
+
+    BASEROW_URL = (os.getenv("BASEROW_URL") or "https://api.baserow.io").rstrip("/")
+    BASEROW_EMAIL = os.getenv("BASEROW_EMAIL") or ""
+    BASEROW_PASSWORD = os.getenv("BASEROW_PASSWORD") or ""
+    BASEROW_TOKEN = os.getenv("BASEROW_TOKEN") or ""
+    BASEROW_DATABASE_ID = _int("BASEROW_DATABASE_ID")
+
+    TABLE_IDS = {
+        "unidades": _int("TABLE_UNIDADES"),
+        "funcionarios": _int("TABLE_FUNCIONARIOS"),
+        "usuarios": _int("TABLE_USUARIOS"),
+        "lancamentos": _int("TABLE_LANCAMENTOS"),
+    }
+
+    JORNADA_PADRAO_SEGUNDOS = int(float(os.getenv("JORNADA_PADRAO_HORAS") or 8) * 3600)
+    ALMOCO_SEGUNDOS = int(float(os.getenv("ALMOCO_HORAS") or 1) * 3600)
+    TIMEZONE_OFFSET = _int("TIMEZONE_OFFSET", -3)
+
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    PERMANENT_SESSION_LIFETIME = 60 * 60 * 10

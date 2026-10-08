@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Analisar lançamento{% endblock %}
+{% block conteudo %}
+
+<h1>Analisar lançamento</h1>
+<p class="sub">{{ item.funcionario or item.prontuario }} em {{ item.data_br }}</p>
+
+<div class="cartao">
+  <div class="indicadores">
+    <div class="indicador">
+      <div class="rotulo">Entrada</div>
+      <div class="valor">{{ item.entrada_seg | dur }}</div>
+    </div>
+    <div class="indicador">
+      <div class="rotulo">Saída</div>
+      <div class="valor">{{ item.saida_seg | dur }}</div>
+    </div>
+    <div class="indicador">
+      <div class="rotulo">Permanência</div>
+      <div class="valor">{{ item.permanencia_seg | dur }}</div>
+      <div class="apoio">saída menos entrada</div>
+    </div>
+    <div class="indicador">
+      <div class="rotulo">Almoço descontado</div>
+      <div class="valor">{{ item.almoco_seg | dur }}</div>
+      <div class="apoio">não conta como excedente</div>
+    </div>
+    <div class="indicador">
+      <div class="rotulo">Trabalhadas</div>
+      <div class="valor">{{ item.trabalhadas_seg | dur }}</div>
+      <div class="apoio">jornada padrão {{ jornada_horas }}:00</div>
+    </div>
+    <div class="indicador">
+      <div class="rotulo">Excedentes</div>
+      <div class="valor">{{ item.excedidas_seg | dur }}</div>
+      <div class="apoio">{{ item.excedidas_seg | hdec }} horas decimais</div>
+    </div>
+    <div class="indicador">
+      <div class="rotulo">Hora corrida</div>
+      <div class="valor">{{ 'Solicitada' if item.hc_solicitada else 'Não pedida' }}</div>
+      <div class="apoio">{{ item.hc_status }}</div>
+    </div>
+  </div>
+
+  {% if item.hc_solicitada %}
+  <p class="destaque">
+    O RH registrou que a pessoa não parou para almoçar.
+    Autorizando a hora corrida, o excedente passa de
+    <strong>{{ item.excedidas_seg | dur }}</strong> para
+    <strong>{{ item.excedidas_com_hc_seg | dur }}</strong>.
+    Negando, ele fica em {{ item.excedidas_seg | dur }}.
+  </p>
+  {% endif %}
+
+  <p><strong>Unidade:</strong> {{ item.unidade or '—' }}</p>
+  <p><strong>Lançado por:</strong> {{ item.lancado_por or '—' }} {{ item.lancado_em }}</p>
+  {% if item.obs_rh %}<p><strong>Observação do RH:</strong> {{ item.obs_rh }}</p>{% endif %}
+  {% if item.decidido_por %}
+  <p><strong>Decisão anterior:</strong> {{ item.status }} por {{ item.decidido_por }} em {{ item.decidido_em }}</p>
+  {% endif %}
+</div>
+
+<form class="cartao" method="post">
+  {% if item.hc_solicitada %}
+  <div class="linha">
+    <div class="campo estreito">
+      <label for="hc_decisao">Hora corrida</label>
+      <select id="hc_decisao" name="hc_decisao">
+        <option value="Autorizada" {% if item.hc_status == 'Autorizada' %}selected{% endif %}>Autorizar</option>
+        <option value="Negada" {% if item.hc_status == 'Negada' %}selected{% endif %}>Negar</option>
+        <option value="Pendente" {% if item.hc_status == 'Pendente' %}selected{% endif %}>Deixar pendente</option>
+      </select>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="linha">
+    <div class="campo">
+      <label for="parecer">Parecer do gestor</label>
+      <textarea id="parecer" name="parecer">{{ item.parecer }}</textarea>
+      <span class="dica">Obrigatório ao rejeitar.</span>
+    </div>
+  </div>
+
+  <div class="acoes">
+    <button class="botao ok" type="submit" name="decisao" value="Aprovado">Aprovar horas</button>
+    <button class="botao perigo" type="submit" name="decisao" value="Rejeitado">Rejeitar horas</button>
+    <a class="botao secundario" href="{{ url_for('aprovacoes.listar') }}">Voltar</a>
+  </div>
+</form>
+{% endblock %}

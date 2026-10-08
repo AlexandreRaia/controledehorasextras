@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block titulo %}{% if item %}Editar lançamento{% else %}Novo lançamento{% endif %}{% endblock %}
+{% block conteudo %}
+
+<h1>{% if item %}Editar lançamento{% else %}Novo lançamento{% endif %}</h1>
+<p class="sub">
+  A jornada padrão é de {{ jornada_horas }} horas e a hora de almoço não conta
+  como excedente. Marque a hora corrida quando a pessoa não parou para almoçar:
+  se o gestor autorizar, essa hora passa a contar como excedente.
+  A saída menor que a entrada é tratada como virada de meia-noite.
+</p>
+
+<form class="cartao" method="post">
+  <div class="linha">
+    <div class="campo estreito">
+      <label for="data">Data</label>
+      <input type="date" id="data" name="data" required
+             value="{{ form.get('data') or hoje }}">
+    </div>
+    <div class="campo">
+      <label for="funcionario_id">Funcionário</label>
+      <select id="funcionario_id" name="funcionario_id" required>
+        <option value="">Selecione</option>
+        {% for f in funcionarios %}
+        <option value="{{ f.id }}"
+          {% if form.get('funcionario_id')|string == f.id|string %}selected{% endif %}>
+          {{ f.nome }} — {{ f.prontuario }}{% if f.unidade %} ({{ f.unidade }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="linha">
+    <div class="campo estreito">
+      <label for="entrada">Entrada (H:MM)</label>
+      <input type="text" id="entrada" name="entrada" placeholder="8:00" required
+             value="{{ form.get('entrada') or '' }}">
+    </div>
+    <div class="campo estreito">
+      <label for="saida">Saída (H:MM)</label>
+      <input type="text" id="saida" name="saida" placeholder="19:30" required
+             value="{{ form.get('saida') or '' }}">
+    </div>
+    <div class="campo checa">
+      <input type="checkbox" id="hc_solicitada" name="hc_solicitada"
+             {% if form.get('hc_solicitada') %}checked{% endif %}>
+      <label for="hc_solicitada">Hora corrida: não parou para almoçar</label>
+    </div>
+  </div>
+
+  <div class="linha">
+    <div class="campo">
+      <label for="obs_rh">Observação do RH</label>
+      <textarea id="obs_rh" name="obs_rh">{{ form.get('obs_rh') or '' }}</textarea>
+    </div>
+  </div>
+
+  {% if item %}
+  <p class="dica">
+    Situação atual: {{ item.status }}.
+    Depois que o gestor decide, este lançamento deixa de ser editável.
+  </p>
+  {% endif %}
+
+  <div class="acoes">
+    <button class="botao" type="submit">Salvar</button>
+    <a class="botao secundario" href="{{ url_for('lancamentos.listar') }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

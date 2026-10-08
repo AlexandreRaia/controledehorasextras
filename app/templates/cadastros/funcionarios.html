@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block titulo %}Funcionários{% endblock %}
+{% block conteudo %}
+
+<h1>Funcionários</h1>
+<p class="sub">O prontuário identifica o funcionário nos lançamentos e precisa ser único.</p>
+
+<form class="cartao" method="post" action="{{ url_for('cadastros.funcionario_salvar') }}">
+  <input type="hidden" name="id" id="f_id">
+  <div class="linha">
+    <div class="campo">
+      <label for="f_nome">Nome</label>
+      <input type="text" id="f_nome" name="nome" required>
+    </div>
+    <div class="campo estreito">
+      <label for="f_prontuario">Prontuário</label>
+      <input type="text" id="f_prontuario" name="prontuario" required>
+    </div>
+    <div class="campo estreito">
+      <label for="f_telefone">Telefone</label>
+      <input type="text" id="f_telefone" name="telefone">
+    </div>
+  </div>
+  <div class="linha">
+    <div class="campo">
+      <label for="f_cargo">Cargo</label>
+      <input type="text" id="f_cargo" name="cargo" placeholder="Motorista">
+    </div>
+    <div class="campo">
+      <label for="f_unidade">Unidade</label>
+      <select id="f_unidade" name="unidade_id">
+        <option value="">Sem unidade</option>
+        {% for u in unidades %}
+        <option value="{{ u.id }}">{{ u.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo checa">
+      <input type="checkbox" id="f_ativo" name="ativo" checked>
+      <label for="f_ativo">Ativo</label>
+    </div>
+  </div>
+  <div class="acoes">
+    <button class="botao" type="submit">Salvar</button>
+    <button class="botao secundario" type="button" onclick="limpar()">Limpar</button>
+  </div>
+</form>
+
+<div class="cartao tabela-rolagem">
+  <table>
+    <thead>
+      <tr><th>Prontuário</th><th>Nome</th><th>Cargo</th><th>Unidade</th>
+          <th>Telefone</th><th>Situação</th><th>Ações</th></tr>
+    </thead>
+    <tbody>
+      {% for f in itens %}
+      <tr>
+        <td>{{ f.prontuario }}</td>
+        <td>{{ f.nome }}</td>
+        <td>{{ f.cargo }}</td>
+        <td>{{ f.unidade }}</td>
+        <td>{{ f.telefone }}</td>
+        <td>
+          {% if f.ativo %}<span class="etiqueta e-aprovado">Ativo</span>
+          {% else %}<span class="etiqueta e-neutro">Inativo</span>{% endif %}
+        </td>
+        <td>
+          <div class="acoes">
+            <button class="botao mini secundario" type="button"
+                    onclick='editar({{ f | tojson }})'>Editar</button>
+            <form method="post" action="{{ url_for('cadastros.funcionario_excluir', row_id=f.id) }}"
+                  onsubmit="return confirm('Excluir {{ f.nome }}?');">
+              <button class="botao mini perigo" type="submit">Excluir</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="vazio">Nenhum funcionário cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+function editar(f) {
+  document.getElementById('f_id').value = f.id;
+  document.getElementById('f_nome').value = f.nome || '';
+  document.getElementById('f_prontuario').value = f.prontuario || '';
+  document.getElementById('f_telefone').value = f.telefone || '';
+  document.getElementById('f_cargo').value = f.cargo || '';
+  document.getElementById('f_unidade').value = (f.unidade_ids && f.unidade_ids[0]) || '';
+  document.getElementById('f_ativo').checked = !!f.ativo;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function limpar() {
+  document.getElementById('f_id').value = '';
+  for (const campo of ['f_nome', 'f_prontuario', 'f_telefone', 'f_cargo']) {
+    document.getElementById(campo).value = '';
+  }
+  document.getElementById('f_unidade').value = '';
+  document.getElementById('f_ativo').checked = true;
+}
+</script>
+{% endblock %}

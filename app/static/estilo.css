@@ -1,0 +1,225 @@
+:root {
+  --fundo: #f4f6f9;
+  --papel: #ffffff;
+  --borda: #dde3ea;
+  --texto: #1f2933;
+  --suave: #647181;
+  --primaria: #1f5fa9;
+  --primaria-escura: #17487f;
+  --ok: #1d7a4c;
+  --ok-fundo: #e4f5ec;
+  --erro: #b3261e;
+  --erro-fundo: #fdeceb;
+  --aviso: #8a6100;
+  --aviso-fundo: #fdf3dd;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 15px/1.5 "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+}
+
+a { color: var(--primaria); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ----------------------------------------------------------------- topo */
+.topo {
+  background: var(--primaria);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18);
+}
+.topo-interno {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.marca { color: #fff; font-weight: 600; font-size: 17px; }
+.marca:hover { text-decoration: none; }
+.menu { display: flex; gap: 14px; flex-wrap: wrap; flex: 1; }
+.menu a { color: #dce7f5; font-size: 14px; }
+.menu a:hover { color: #fff; }
+.sessao { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.quem { color: #fff; }
+.sair { color: #ffd9d5; }
+
+/* ------------------------------------------------------------- conteudo */
+.conteudo { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; }
+.rodape {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px 28px;
+  color: var(--suave);
+  font-size: 13px;
+}
+
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 24px 0 10px; }
+.sub { color: var(--suave); margin: 0 0 18px; }
+
+.cartao {
+  background: var(--papel);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+/* -------------------------------------------------------------- avisos */
+.avisos { margin-bottom: 16px; display: grid; gap: 8px; }
+.aviso { padding: 10px 12px; border-radius: 6px; font-size: 14px; border: 1px solid; }
+.aviso-ok { background: var(--ok-fundo); border-color: #b7e0c9; color: var(--ok); }
+.aviso-erro { background: var(--erro-fundo); border-color: #f3c3bf; color: var(--erro); }
+.aviso-aviso { background: var(--aviso-fundo); border-color: #ecd9a4; color: var(--aviso); }
+
+/* ------------------------------------------------------------- tabelas */
+.tabela-rolagem { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--papel); font-size: 14px; }
+th, td { padding: 9px 10px; border-bottom: 1px solid var(--borda); text-align: left; vertical-align: top; }
+th { background: #eef2f7; font-weight: 600; color: #3b4857; white-space: nowrap; }
+tbody tr:hover { background: #f8fafc; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tfoot td { font-weight: 600; background: #eef2f7; }
+.vazio { padding: 24px; text-align: center; color: var(--suave); }
+
+/* grupos por funcionario */
+tbody + tbody { border-top: 2px solid var(--borda); }
+tr.grupo td { background: #e9eef5; color: #2b3a4d; padding-top: 11px; padding-bottom: 11px; }
+tr.grupo:hover td { background: #e9eef5; }
+tr.grupo .dica { margin-left: 8px; }
+tr.subtotal td { background: #f7f9fc; font-weight: 600; border-bottom: 2px solid var(--borda); }
+tr.subtotal:hover td { background: #f7f9fc; }
+tr.subtotal .dica { font-weight: 500; }
+
+/* ----------------------------------------------------------- etiquetas */
+.etiqueta {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.etiqueta.perfil { background: rgba(255,255,255,.2); color: #fff; }
+.e-pendente { background: var(--aviso-fundo); color: var(--aviso); }
+.e-aprovado { background: var(--ok-fundo); color: var(--ok); }
+.e-rejeitado { background: var(--erro-fundo); color: var(--erro); }
+.e-neutro { background: #eceff3; color: var(--suave); }
+
+/* ------------------------------------------------------------- formulario */
+form .linha {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: flex-end;   /* campos de alturas diferentes terminam na mesma base */
+  margin-bottom: 12px;
+}
+.campo { display: flex; flex-direction: column; gap: 4px; min-width: 150px; flex: 1; }
+.campo.estreito { flex: 0 0 130px; min-width: 130px; }
+.campo.auto { flex: 0 0 auto; min-width: 0; }
+.campo.largo { flex: 2; }
+label { font-size: 13px; color: var(--suave); font-weight: 600; }
+input[type=text], input[type=password], input[type=date], input[type=number],
+select, textarea {
+  padding: 8px 9px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+  color: var(--texto);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid #9dc1ea; border-color: var(--primaria); }
+textarea { min-height: 70px; resize: vertical; }
+.checa { flex-direction: row; align-items: center; gap: 8px; padding-bottom: 9px; }
+.checa label { font-weight: 500; color: var(--texto); white-space: nowrap; }
+
+.botao {
+  display: inline-block;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: var(--primaria);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.botao:hover { background: var(--primaria-escura); text-decoration: none; }
+.botao.secundario { background: #fff; color: var(--primaria); border-color: var(--borda); }
+.botao.secundario:hover { background: #eef2f7; }
+.botao.perigo { background: var(--erro); }
+.botao.perigo:hover { background: #8f1d17; }
+.botao.ok { background: var(--ok); }
+.botao.ok:hover { background: #155c39; }
+.botao.mini { padding: 4px 9px; font-size: 12px; }
+.acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ------------------------------------------------- botoes de decisao */
+.decisao { display: flex; gap: 6px; align-items: center; }
+.decisao form { display: inline; }
+
+/* O estado escolhido fica cheio; o outro fica so contornado. */
+.botao.mini.ok:not(.ativo) { background: #fff; color: var(--ok); border-color: #b7e0c9; }
+.botao.mini.ok:not(.ativo):hover { background: var(--ok-fundo); }
+.botao.mini.perigo:not(.ativo) { background: #fff; color: var(--erro); border-color: #f3c3bf; }
+.botao.mini.perigo:not(.ativo):hover { background: var(--erro-fundo); }
+
+.polegar {
+  font-size: 17px;
+  line-height: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  filter: grayscale(1);
+  opacity: .55;
+}
+.polegar:hover { filter: none; opacity: 1; }
+.polegar.cima.ativo { filter: none; opacity: 1; background: var(--ok-fundo); border-color: var(--ok); }
+.polegar.baixo.ativo { filter: none; opacity: 1; background: var(--erro-fundo); border-color: var(--erro); }
+
+/* ---------------------------------------------------------------- cards */
+.indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.indicador { background: var(--papel); border: 1px solid var(--borda); border-radius: 8px; padding: 14px; }
+.indicador .rotulo { font-size: 12px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
+.indicador .valor { font-size: 24px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.indicador .apoio { font-size: 12px; color: var(--suave); }
+
+/* ---------------------------------------------------------------- login */
+.caixa-login {
+  max-width: 380px;
+  margin: 8vh auto;
+  background: var(--papel);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 26px;
+}
+.caixa-login h1 { text-align: center; }
+.caixa-login .sub { text-align: center; }
+.caixa-login .botao { width: 100%; }
+
+.destaque {
+  background: var(--aviso-fundo);
+  border: 1px solid #ecd9a4;
+  border-radius: 6px;
+  padding: 11px 13px;
+  margin: 4px 0 14px;
+  color: #6b4b00;
+}
+.destaque strong { color: #4a3400; }
+
+.filtros { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.dica { font-size: 12px; color: var(--suave); }
+
+@media (max-width: 720px) {
+  .topo-interno { flex-direction: column; align-items: flex-start; }
+  .sessao { width: 100%; }
+}

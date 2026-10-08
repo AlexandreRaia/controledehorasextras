@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Aprovações{% endblock %}
+{% set voltar = request.full_path %}
+{% block conteudo %}
+
+<h1>Aprovações</h1>
+<p class="sub">
+  Cada botão grava na hora. Aprovar ou reprovar decide as horas excedentes.
+  O polegar decide a hora corrida: para cima significa que a pessoa não almoçou
+  e aquela hora passa a contar como excedente.
+</p>
+
+<form class="cartao filtros" method="get">
+  {{ m.seletor_mes(ano, mes) }}
+  <div class="campo estreito">
+    <label for="status">Situação</label>
+    <select id="status" name="status">
+      {% for s in ['Pendente', 'Aprovado', 'Rejeitado'] %}
+      <option value="{{ s }}" {% if s == status %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+      <option value="" {% if not status %}selected{% endif %}>Todas</option>
+    </select>
+  </div>
+  <div class="campo checa auto">
+    <input type="checkbox" id="todos" name="todos" value="1"
+           {% if not somente_relevantes %}checked{% endif %}>
+    <label for="todos">Mostrar também dias sem excedente</label>
+  </div>
+  <div class="campo estreito"><button class="botao" type="submit">Filtrar</button></div>
+</form>
+
+<div class="cartao tabela-rolagem">
+  <table>
+    <thead>
+      <tr>
+        <th><input type="checkbox" form="lote" title="Marcar todos"
+                   onclick="for (const c of this.closest('table').querySelectorAll('tbody input[type=checkbox]')) c.checked = this.checked;"></th>
+        <th>Data</th>
+        <th class="num">Permanência</th><th class="num">Almoço</th>
+        <th class="num">Trabalhadas</th><th class="num">Excedentes</th>
+        <th class="num">Com HC</th>
+        <th>Hora corrida</th><th>Horas excedentes</th>
+        <th>Decidido por</th><th></th>
+      </tr>
+    </thead>
+    {% for g in grupos %}
+    <tbody>
+      <tr class="grupo">
+        <td></td>
+        <td colspan="10">
+          <strong>{{ g.funcionario }}</strong>
+          <span class="dica">prontuário {{ g.prontuario }}{% if g.unidade %} · {{ g.unidade }}{% endif %}</span>
+        </td>
+      </tr>
+      {% for i in g.itens %}
+      <tr>
+        <td><input type="checkbox" form="lote" name="selecionados" value="{{ i.id }}"></td>
+        <td>{{ i.data_br }}</td>
+        <td class="num">{{ i.permanencia_seg | dur }}</td>
+        <td class="num">{{ i.almoco_seg | dur }}</td>
+        <td class="num">{{ i.trabalhadas_seg | dur }}</td>
+        <td class="num">{{ i.excedidas_seg | dur }}</td>
+        <td class="num">
+          {%- if i.excedidas_com_hc_seg != i.excedidas_seg -%}
+            {{ i.excedidas_com_hc_seg | dur }}
+          {%- else -%}<span class="dica">—</span>{%- endif -%}
+        </td>
+        <td>
+          {{ m.decidir_hc(i, voltar) }}
+          <span class="dica">{{ i.hc_status }}</span>
+        </td>
+        <td>
+          {{ m.decidir_horas(i, voltar) }}
+          <span class="dica">{{ i.status }}</span>
+        </td>
+        <td>{{ i.decidido_por }}{% if i.decidido_em %}<br><span class="dica">{{ i.decidido_em }}</span>{% endif %}</td>
+        <td><a class="botao mini secundario" href="{{ url_for('aprovacoes.decidir', row_id=i.id) }}">Analisar</a></td>
+      </tr>
+      {% endfor %}
+      <tr class="subtotal">
+        <td></td>
+        <td>Subtotal · {{ g.dias }} dia{{ 's' if g.dias != 1 }}</td>
+        <td class="num">{{ g.permanencia | dur }}</td>
+        <td class="num">{{ g.almoco | dur }}</td>
+        <td class="num">{{ g.trabalhadas | dur }}</td>
+        <td class="num">{{ g.excedidas | dur }}</td>
+        <td colspan="5">
+          <span class="dica">
+            aprovadas {{ g.aprovadas | dur }} · pendentes {{ g.pendentes | dur }}
+            {%- if g.rejeitadas %} · rejeitadas {{ g.rejeitadas | dur }}{% endif %}
+            {%- if g.hc_pedidas %} · HC autorizadas {{ g.hc_autorizadas }} de {{ g.hc_pedidas }}{% endif %}
+          </span>
+        </td>
+      </tr>
+    </tbody>
+    {% else %}
+    <tbody>
+      <tr><td colspan="11" class="vazio">Nada a decidir neste filtro.</td></tr>
+    </tbody>
+    {% endfor %}
+    {% if grupos %}
+    <tfoot>
+      <tr>
+        <td colspan="5">Total geral de {{ grupos | length }} funcionário(s)</td>
+        <td class="num">{{ total_excedido | dur }}</td>
+        <td colspan="5"></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+
+{% if grupos %}
+<form class="cartao" id="lote" method="post" action="{{ url_for('aprovacoes.lote') }}">
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <h2>Decisão em lote</h2>
+  <p class="dica">
+    Para resolver vários dias de uma vez, marque as caixas da primeira coluna.
+  </p>
+  <div class="linha">
+    <div class="campo">
+      <label for="parecer">Parecer (obrigatório para rejeitar)</label>
+      <textarea id="parecer" name="parecer"></textarea>
+    </div>
+  </div>
+  <div class="acoes">
+    <button class="botao ok" type="submit" name="decisao" value="Aprovado">Aprovar selecionados</button>
+    <button class="botao perigo" type="submit" name="decisao" value="Rejeitado">Rejeitar selecionados</button>
+  </div>
+  <p class="dica">
+    Na aprovação em lote a hora corrida pedida é autorizada junto, e na rejeição
+    é negada. Para separar as duas decisões, use os botões da linha.
+  </p>
+</form>
+{% endif %}
+{% endblock %}

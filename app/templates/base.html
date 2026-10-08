@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Controle de Horas Extras{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+</head>
+<body>
+<header class="topo">
+  <div class="topo-interno">
+    <a class="marca" href="{{ url_for('relatorios.inicio') }}">Controle de Horas Extras</a>
+    {% if usuario %}
+    <nav class="menu">
+      <a href="{{ url_for('lancamentos.listar') }}">Lançamentos</a>
+      {% if pode_lancar %}<a href="{{ url_for('lancamentos.dia') }}">Lançar o dia</a>{% endif %}
+      {% if pode_decidir %}<a href="{{ url_for('aprovacoes.listar') }}">Aprovações</a>{% endif %}
+      <a href="{{ url_for('relatorios.consolidado') }}">Relatórios</a>
+      {% if pode_cadastrar %}
+      <a href="{{ url_for('cadastros.funcionarios') }}">Funcionários</a>
+      <a href="{{ url_for('cadastros.unidades') }}">Unidades</a>
+      <a href="{{ url_for('cadastros.usuarios') }}">Usuários</a>
+      {% endif %}
+    </nav>
+    <div class="sessao">
+      <span class="quem">{{ usuario.nome }}</span>
+      <span class="etiqueta perfil">{{ perfil }}</span>
+      <a class="sair" href="{{ url_for('auth.logout') }}">Sair</a>
+    </div>
+    {% endif %}
+  </div>
+</header>
+
+<main class="conteudo">
+  {% with mensagens = get_flashed_messages(with_categories=true) %}
+    {% if mensagens %}
+      <div class="avisos">
+        {% for categoria, texto in mensagens %}
+          <div class="aviso aviso-{{ categoria }}">{{ texto }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block conteudo %}{% endblock %}
+</main>
+
+<footer class="rodape">
+  Jornada padrão de {{ jornada_horas }} horas. Horas excedentes dependem de aprovação do gestor.
+</footer>
+</body>
+</html>

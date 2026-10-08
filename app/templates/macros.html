@@ -1,0 +1,70 @@
+{% set MESES = [
+  (1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'),
+  (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'),
+  (9, 'Setembro'), (10, 'Outubro'), (11, 'Novembro'), (12, 'Dezembro')
+] %}
+
+{% macro seletor_mes(ano, mes) %}
+  <div class="campo estreito">
+    <label for="mes">Mês</label>
+    <select id="mes" name="mes">
+      {% for numero, nome in MESES %}
+        <option value="{{ numero }}" {% if numero == mes %}selected{% endif %}>{{ nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="campo estreito">
+    <label for="ano">Ano</label>
+    <input type="number" id="ano" name="ano" value="{{ ano }}" min="2020" max="2100">
+  </div>
+{% endmacro %}
+
+{% macro etiqueta_status(status) %}
+  {% if status == 'Aprovado' %}<span class="etiqueta e-aprovado">Aprovado</span>
+  {% elif status == 'Rejeitado' %}<span class="etiqueta e-rejeitado">Rejeitado</span>
+  {% else %}<span class="etiqueta e-pendente">Pendente</span>{% endif %}
+{% endmacro %}
+
+{# Botoes de decisao do gestor. Cada clique grava direto no banco. #}
+{% macro decidir_horas(item, voltar) %}
+  <div class="decisao">
+    <form method="post" action="{{ url_for('aprovacoes.decidir_horas', row_id=item.id) }}">
+      <input type="hidden" name="voltar" value="{{ voltar }}">
+      <button class="botao mini ok {{ 'ativo' if item.status == 'Aprovado' }}"
+              type="submit" name="valor" value="Aprovado"
+              title="Aprovar as horas excedentes">Aprovar</button>
+    </form>
+    <form method="post" action="{{ url_for('aprovacoes.decidir_horas', row_id=item.id) }}">
+      <input type="hidden" name="voltar" value="{{ voltar }}">
+      <button class="botao mini perigo {{ 'ativo' if item.status == 'Rejeitado' }}"
+              type="submit" name="valor" value="Rejeitado"
+              title="Reprovar as horas excedentes">Reprovar</button>
+    </form>
+  </div>
+{% endmacro %}
+
+{% macro decidir_hc(item, voltar) %}
+  <div class="decisao">
+    <form method="post" action="{{ url_for('aprovacoes.decidir_hc', row_id=item.id) }}">
+      <input type="hidden" name="voltar" value="{{ voltar }}">
+      <button class="polegar cima {{ 'ativo' if item.hc_status == 'Autorizada' }}"
+              type="submit" name="valor" value="Autorizada"
+              title="Autorizar a hora corrida: não almoçou, a hora conta como excedente"
+              aria-label="Autorizar hora corrida">&#128077;</button>
+    </form>
+    <form method="post" action="{{ url_for('aprovacoes.decidir_hc', row_id=item.id) }}">
+      <input type="hidden" name="voltar" value="{{ voltar }}">
+      <button class="polegar baixo {{ 'ativo' if item.hc_status == 'Negada' }}"
+              type="submit" name="valor" value="Negada"
+              title="Negar a hora corrida: a hora de almoço continua descontada"
+              aria-label="Negar hora corrida">&#128078;</button>
+    </form>
+  </div>
+{% endmacro %}
+
+{% macro etiqueta_hc(item) %}
+  {% if not item.hc_solicitada %}<span class="etiqueta e-neutro">—</span>
+  {% elif item.hc_status == 'Autorizada' %}<span class="etiqueta e-aprovado">Autorizada</span>
+  {% elif item.hc_status == 'Negada' %}<span class="etiqueta e-rejeitado">Negada</span>
+  {% else %}<span class="etiqueta e-pendente">A decidir</span>{% endif %}
+{% endmacro %}

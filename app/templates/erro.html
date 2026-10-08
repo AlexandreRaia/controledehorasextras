@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block conteudo %}
+<div class="cartao">
+  <h1>{{ titulo }}</h1>
+  <p class="sub">{{ mensagem }}</p>
+  {% if detalhe %}<p class="dica">{{ detalhe }}</p>{% endif %}
+  <p><a class="botao secundario" href="{{ url_for('relatorios.inicio') }}">Voltar ao inicio</a></p>
+</div>
+{% endblock %}

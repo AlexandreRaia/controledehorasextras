@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block titulo %}Usuários{% endblock %}
+{% block conteudo %}
+
+<h1>Usuários</h1>
+<p class="sub">
+  O perfil define o que a pessoa pode fazer. RH lança, Gestor decide,
+  Operações consulta e Administrador mantém os cadastros.
+</p>
+
+<form class="cartao" method="post" action="{{ url_for('cadastros.usuario_salvar') }}">
+  <input type="hidden" name="id" id="u_id">
+  <div class="linha">
+    <div class="campo largo">
+      <label for="u_nome">Nome</label>
+      <input type="text" id="u_nome" name="nome" required>
+    </div>
+    <div class="campo">
+      <label for="u_login">Login</label>
+      <input type="text" id="u_login" name="login" autocomplete="off" required>
+    </div>
+    <div class="campo">
+      <label for="u_perfil">Perfil</label>
+      <select id="u_perfil" name="perfil" required>
+        {% for p in perfis %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="campo estreito">
+      <label for="u_senha">Senha</label>
+      <input type="password" id="u_senha" name="senha" autocomplete="new-password">
+    </div>
+    <div class="campo checa auto">
+      <input type="checkbox" id="u_ativo" name="ativo" checked>
+      <label for="u_ativo">Ativo</label>
+    </div>
+  </div>
+  <p class="dica">Ao editar, deixe a senha em branco para manter a atual.</p>
+  <div class="acoes">
+    <button class="botao" type="submit">Salvar</button>
+    <button class="botao secundario" type="button" onclick="limpar()">Limpar</button>
+  </div>
+</form>
+
+<div class="cartao tabela-rolagem">
+  <table>
+    <thead>
+      <tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Situação</th><th>Ações</th></tr>
+    </thead>
+    <tbody>
+      {% for u in itens %}
+      <tr>
+        <td>{{ u.nome }}</td>
+        <td>{{ u.login or '—' }}</td>
+        <td>{{ u.perfil or '—' }}</td>
+        <td>
+          {% if u.ativo %}<span class="etiqueta e-aprovado">Ativo</span>
+          {% else %}<span class="etiqueta e-neutro">Inativo</span>{% endif %}
+          {% if not u.hash %}<span class="etiqueta e-pendente">sem senha</span>{% endif %}
+        </td>
+        <td>
+          <div class="acoes">
+            <button class="botao mini secundario" type="button"
+                    onclick='editar({{ {"id": u.id, "nome": u.nome, "login": u.login,
+                                        "perfil": u.perfil, "ativo": u.ativo} | tojson }})'>Editar</button>
+            <form method="post" action="{{ url_for('cadastros.usuario_excluir', row_id=u.id) }}"
+                  onsubmit="return confirm('Excluir o usuário {{ u.nome }}?');">
+              <button class="botao mini perigo" type="submit">Excluir</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="vazio">Nenhum usuário cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+function editar(u) {
+  document.getElementById('u_id').value = u.id;
+  document.getElementById('u_nome').value = u.nome || '';
+  document.getElementById('u_login').value = u.login || '';
+  document.getElementById('u_perfil').value = u.perfil || '';
+  document.getElementById('u_ativo').checked = !!u.ativo;
+  document.getElementById('u_senha').value = '';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function limpar() {
+  document.getElementById('u_id').value = '';
+  for (const campo of ['u_nome', 'u_login', 'u_senha']) {
+    document.getElementById(campo).value = '';
+  }
+  document.getElementById('u_ativo').checked = true;
+}
+</script>
+{% endblock %}
