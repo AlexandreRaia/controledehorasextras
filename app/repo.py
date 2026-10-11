@@ -145,10 +145,6 @@ class Repo:
         rows = self.db.todos("SELECT * FROM usuarios ORDER BY nome")
         return [self._map_usuario(r) for r in rows]
 
-    def usuario(self, row_id):
-        r = self._existe(self.db.um("SELECT * FROM usuarios WHERE id = %s", (row_id,)))
-        return self._map_usuario(r)
-
     def usuario_por_login(self, login):
         alvo = (login or "").strip().lower()
         if not alvo:

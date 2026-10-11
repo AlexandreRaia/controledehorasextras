@@ -1,7 +1,7 @@
 """Sessao, perfis e regras de quem pode fazer o que."""
 from functools import wraps
 
-from flask import abort, flash, g, make_response, redirect, request, session, url_for
+from flask import abort, flash, make_response, redirect, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 PERFIL_ADMIN = "Administrador"
@@ -19,13 +19,6 @@ PODE_CADASTRAR = {PERFIL_ADMIN}
 # nao lanca nem decide.
 PODE_FECHAR = {PERFIL_GESTOR}
 PODE_REABRIR = {PERFIL_ADMIN}
-
-DESCRICAO_PERFIL = {
-    PERFIL_ADMIN: "Mantem usuarios, funcionarios e unidades. Consulta lancamentos.",
-    PERFIL_RH: "Lanca e corrige as horas enquanto o lancamento estiver pendente.",
-    PERFIL_GESTOR: "Aprova ou rejeita horas excedentes e autoriza a hora corrida.",
-    PERFIL_OPERACOES: "Somente consulta e relatorios.",
-}
 
 
 def hash_senha(senha):
@@ -69,10 +62,6 @@ def perfil_atual():
     return session.get("perfil")
 
 
-def tem_perfil(*perfis):
-    return perfil_atual() in perfis
-
-
 def pode_lancar():
     return perfil_atual() in PODE_LANCAR
 
@@ -103,7 +92,6 @@ def login_required(view):
                 return resposta
             flash("Faca login para continuar.", "aviso")
             return redirect(url_for("auth.login", proximo=request.full_path))
-        g.usuario = usuario_atual()
         return view(*args, **kwargs)
 
     return wrapper

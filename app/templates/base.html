@@ -14,7 +14,6 @@
     {% if usuario %}
     <nav class="menu">
       <a href="{{ url_for('lancamentos.listar') }}">Lançamentos</a>
-      {% if pode_lancar %}<a href="{{ url_for('lancamentos.dia') }}">Lançar o dia</a>{% endif %}
       {% if pode_decidir %}<a href="{{ url_for('aprovacoes.listar') }}">Aprovações</a>{% endif %}
       <a href="{{ url_for('relatorios.consolidado') }}">Relatórios</a>
       <a href="{{ url_for('fechamento.listar') }}">Fechamento</a>

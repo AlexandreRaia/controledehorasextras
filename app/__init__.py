@@ -23,36 +23,24 @@ from .utils import (
     format_duration,
     horas_decimais,
     ident,
+    MESES,
 )
 
 _repo = None
-_repo_erro = None
 
 
 def get_repo():
     """Cria o acesso ao banco na primeira chamada e reaproveita depois."""
-    global _repo, _repo_erro
+    global _repo
     if _repo is None:
-        try:
-            _repo = Repo(Config)
-            _repo_erro = None
-        except DBError as exc:
-            _repo_erro = str(exc)
-            raise
+        _repo = Repo(Config)
     return _repo
 
 
 def set_repo(repo):
     """Injeta um acesso a dados pronto. Usado pelos testes."""
-    global _repo, _repo_erro
+    global _repo
     _repo = repo
-    _repo_erro = None
-
-
-def reset_repo():
-    global _repo, _repo_erro
-    _repo = None
-    _repo_erro = None
 
 
 def create_app(config_object=Config):
@@ -76,6 +64,7 @@ def create_app(config_object=Config):
     app.jinja_env.filters["datahora_br"] = format_datetime_br
     app.jinja_env.filters["hdec"] = horas_decimais
     app.jinja_env.filters["ident"] = ident
+    app.jinja_env.globals["MESES"] = MESES
 
     @app.context_processor
     def injeta_contexto():

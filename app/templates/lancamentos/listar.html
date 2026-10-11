@@ -40,11 +40,7 @@
 
 {% if pode_lancar %}
 <div class="cartao acoes">
-  <a class="botao" href="{{ url_for('lancamentos.dia') }}">Lançar o dia</a>
-  <a class="botao secundario" href="{{ url_for('lancamentos.novo') }}">Lançar um dia avulso</a>
-  <span class="dica">
-    Lançar o dia abre a grade com todos os motoristas ativos de uma vez.
-  </span>
+  <a class="botao" href="{{ url_for('lancamentos.novo') }}">Lançar o dia</a>
 </div>
 {% endif %}
 

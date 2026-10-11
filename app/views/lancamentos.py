@@ -1,4 +1,4 @@
-"""Lancamento diario de horas. Exclusivo do RH; os demais perfis so consultam."""
+"""Lancamento de horas. Exclusivo do RH; os demais perfis so consultam."""
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from .. import get_repo
@@ -244,83 +244,6 @@ def excluir(row_id):
         repo.lancamento_excluir(row_id)
         flash("Lancamento excluido.", "ok")
     return redirect(url_for("lancamentos.listar"))
-
-
-@bp.route("/dia", methods=["GET", "POST"])
-@perfil_required(PERFIL_RH)
-def dia():
-    """Lancamento do dia para varios motoristas de uma vez."""
-    repo = get_repo()
-    hoje = local_today(Config.TIMEZONE_OFFSET).isoformat()
-    data_iso = parse_date(request.values.get("data")) or hoje
-    funcionarios = repo.funcionarios(somente_ativos=True)
-    existentes = {
-        i["prontuario"]: i
-        for i in repo.lancamentos(inicio=data_iso, fim=data_iso)
-    }
-
-    fechamento = repo.fechamento(int(data_iso[:4]), int(data_iso[5:7]))
-    if request.method == "POST" and fechamento:
-        flash(MSG_FECHADO, "erro")
-        return redirect(url_for("lancamentos.dia", data=data_iso))
-
-    if request.method == "POST":
-        usuario = usuario_atual()
-        gravados, ignorados, falhas = 0, 0, []
-        for funcionario in funcionarios:
-            sufixo = str(funcionario["id"])
-            entrada = parse_duration(request.form.get("entrada_" + sufixo))
-            saida = parse_duration(request.form.get("saida_" + sufixo))
-            if entrada is None and saida is None:
-                continue
-            if entrada is None or saida is None:
-                falhas.append(funcionario["nome"] + ": preencha entrada e saida.")
-                continue
-
-            anterior = existentes.get(funcionario["prontuario"])
-            if anterior and anterior["status"] != STATUS_PENDENTE:
-                ignorados += 1
-                continue
-
-            _, _, _, excedidas = calcula_jornada(
-                entrada, saida, Config.JORNADA_PADRAO_SEGUNDOS, Config.ALMOCO_SEGUNDOS
-            )
-            hc = bool(request.form.get("hc_" + sufixo))
-            payload = {
-                S.F["lanc_data"]: data_iso,
-                S.F["lanc_prontuario"]: funcionario["prontuario"],
-                S.F["lanc_funcionario"]: funcionario["id"],
-                S.F["lanc_entrada"]: entrada,
-                S.F["lanc_saida"]: saida,
-                S.F["lanc_excedidas"]: excedidas,
-                S.F["lanc_unidade"]: funcionario["unidade"],
-                S.F["lanc_hc_solicitada"]: hc,
-                S.F["lanc_hc_status"]: HC_PENDENTE if hc else HC_NAO_SOLICITADA,
-                S.F["lanc_lancado_por"]: usuario["nome"] if usuario else "",
-                S.F["lanc_lancado_em"]: iso_now_utc(),
-            }
-            if anterior:
-                repo.lancamento_atualizar(anterior["id"], payload)
-            else:
-                payload[S.F["lanc_status"]] = STATUS_PENDENTE
-                repo.lancamento_criar(payload)
-            gravados += 1
-
-        if gravados:
-            flash(f"{gravados} lancamento(s) gravado(s) para {data_iso}.", "ok")
-        if ignorados:
-            flash(f"{ignorados} lancamento(s) ja analisados foram preservados.", "aviso")
-        for falha in falhas:
-            flash(falha, "erro")
-        return redirect(url_for("lancamentos.dia", data=data_iso))
-
-    return render_template(
-        "lancamentos/dia.html",
-        fechamento=fechamento,
-        funcionarios=funcionarios,
-        existentes=existentes,
-        data_iso=data_iso,
-    )
 
 
 def _funcionario_do_form(repo, form):

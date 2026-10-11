@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block titulo %}{% if item %}Editar lançamento{% else %}Novo lançamento{% endif %}{% endblock %}
+{% block titulo %}{% if item %}Editar lançamento{% else %}Lançar o dia{% endif %}{% endblock %}
 {% block conteudo %}
 
-<h1>{% if item %}Editar lançamento{% else %}Novo lançamento{% endif %}</h1>
+<h1>{% if item %}Editar lançamento{% else %}Lançar o dia{% endif %}</h1>
 <p class="sub">
   A jornada padrão é de {{ jornada_horas }} horas e a hora de almoço não conta
   como excedente. Marque a hora corrida quando a pessoa não parou para almoçar:

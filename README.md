@@ -132,14 +132,14 @@ waitress-serve --port=5000 run:app
 A raiz do site não tem painel. Ela encaminha o gestor para a fila de
 aprovações e os demais perfis para a lista de lançamentos.
 
-- **Lançar o dia**: grade com todos os motoristas ativos para o RH preencher
-  entrada e saída de uma vez. Linhas em branco são ignoradas e lançamentos já
-  decididos ficam travados.
+- **Lançar o dia**: formulário para o RH registrar entrada e saída de um
+  funcionário em uma data, com a opção de pedir hora corrida.
 - **Lançamentos**: lista do mês agrupada por funcionário, com subtotal de cada
   um e filtros por funcionário e situação.
 - **Aprovações**: fila do gestor agrupada por funcionário. Cada linha tem os
-  botões Aprovar e Reprovar para as horas excedentes e os polegares verde e
-  vermelho para a hora corrida. Um clique grava no banco na hora. A coluna
+  botões Aprovar e Reprovar para as horas excedentes e Autorizar e Negar para
+  a hora corrida, que só aparecem quando o RH pediu. Um clique grava no banco
+  na hora. A coluna
   Com HC mostra no que o excedente ficaria se a hora corrida fosse autorizada.
   Os mesmos botões aparecem na lista de Lançamentos quando quem olha é o
   gestor. Há também decisão em lote para resolver vários dias de uma vez.

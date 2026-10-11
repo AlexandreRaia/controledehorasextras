@@ -1,6 +1,4 @@
 """Tabelas do PostgreSQL e nomes de colunas usados pelo app."""
-import unicodedata
-
 PERFIS = ["Administrador", "RH", "Gestor", "Operacoes"]
 STATUS_APROVACAO = ["Pendente", "Aprovado", "Rejeitado"]
 STATUS_HC = ["Nao solicitada", "Pendente", "Autorizada", "Negada"]
@@ -98,12 +96,3 @@ F = {
     "lanc_decidido_em": "decidido_em",
 }
 COLUNAS_LANCAMENTO = frozenset(F.values())
-
-
-def normalize(text):
-    """Minusculas, sem acento e sem espacos nas pontas."""
-    if text is None:
-        return ""
-    txt = unicodedata.normalize("NFKD", str(text))
-    txt = "".join(ch for ch in txt if not unicodedata.combining(ch))
-    return txt.strip().lower()

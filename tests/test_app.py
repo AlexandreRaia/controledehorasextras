@@ -116,7 +116,7 @@ class RepoFalso:
     def _usuario(row_id, nome, login, perfil):
         return {
             "id": row_id, "nome": nome, "login": login, "perfil": perfil,
-            "hash": hash_senha("senha123"), "ativo": True, "notas": "",
+            "hash": hash_senha("senha123"), "ativo": True,
         }
 
     @staticmethod
@@ -294,7 +294,6 @@ class TestPermissoes(BaseWeb):
         self.entrar("fernando")
         self.assertEqual(self.cliente.get("/aprovacoes/").status_code, 200)
         self.assertEqual(self.cliente.get("/lancamentos/novo").status_code, 403)
-        self.assertEqual(self.cliente.get("/lancamentos/dia").status_code, 403)
 
     def test_operacoes_so_consulta(self):
         self.entrar("veridiana")
@@ -390,7 +389,7 @@ class TestSeparacaoDeFuncoes(BaseWeb):
 class TestTelas(BaseWeb):
     def test_telas_de_consulta_renderizam(self):
         self.entrar("flavio")
-        for rota in ("/", "/lancamentos/", "/lancamentos/dia", "/relatorios"):
+        for rota in ("/", "/lancamentos/", "/lancamentos/novo", "/relatorios"):
             resposta = self.cliente.get(rota, follow_redirects=True)
             self.assertEqual(resposta.status_code, 200, rota)
 
@@ -657,12 +656,6 @@ class TestFechamento(BaseWeb):
         self.assertNotIn("/editar", html)
         self.assertIn("Mês fechado", html)
         self.assertIn("Mês fechado", self.cliente.get("/relatorios?mes=10&ano=2026").get_data(as_text=True))
-
-    def test_grade_do_dia_recusa_mes_fechado(self):
-        self.fecha_outubro()
-        self.como("flavio")
-        self.cliente.post("/lancamentos/dia", data={"data": "2026-10-20", "entrada_27": "8:00", "saida_27": "17:00"})
-        self.assertEqual(self.repo.gravacoes, [])
 
     def test_pagina_de_fechamento_para_todos_os_perfis(self):
         for login in ("flavio", "fernando", "veridiana", "alexandre"):
