@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block titulo %}Fechamento{% endblock %}
+{% block conteudo %}
+
+<h1>Fechamento do mês</h1>
+<p class="sub">
+  Fechar o mês trava lançamentos, edições e decisões daquele período, para que
+  os números enviados à folha não mudem depois. Quem fecha é o Gestor, e só
+  quando não resta nenhum lançamento esperando decisão. Reabrir é exceção e
+  fica com o Administrador, que informa o motivo.
+</p>
+
+<form class="cartao filtros" method="get">
+  <div class="campo estreito">
+    <label for="ano">Ano</label>
+    <input type="number" id="ano" name="ano" value="{{ ano }}" min="2020" max="2100">
+  </div>
+  <div class="campo estreito"><button class="botao" type="submit">Ver</button></div>
+</form>
+
+<div class="cartao tabela-rolagem">
+  <table>
+    <thead>
+      <tr><th>Mês</th><th>Situação</th><th class="num">Esperando decisão</th><th>Ação</th></tr>
+    </thead>
+    <tbody>
+      {% for mes in meses %}
+      <tr>
+        <td><strong>{{ mes.nome }}</strong></td>
+        <td>
+          {% if mes.fechamento %}
+            <span class="etiqueta e-neutro">{{ m.icone('lock') }}Fechado</span>
+            <span class="dica">por {{ mes.fechamento.fechado_por }} em {{ mes.fechamento.fechado_em }}</span>
+          {% elif mes.futuro %}<span class="dica">—</span>
+          {% else %}<span class="etiqueta e-pendente">Aberto</span>{% endif %}
+        </td>
+        <td class="num">{{ mes.pendencias if (not mes.fechamento and not mes.futuro) else '' }}</td>
+        <td>
+          {% if mes.fechamento %}
+            {% if pode_reabrir %}
+            <form class="reabrir" method="post"
+                  action="{{ url_for('fechamento.reabrir', ano=ano, mes=mes.numero) }}">
+              <input type="text" name="motivo" required minlength="5" maxlength="200"
+                     placeholder="Motivo da reabertura" aria-label="Motivo da reabertura">
+              <button class="botao mini perigo" type="submit">Reabrir</button>
+            </form>
+            {% endif %}
+          {% elif not mes.futuro and pode_fechar %}
+            <form method="post" action="{{ url_for('fechamento.fechar', ano=ano, mes=mes.numero) }}"
+                  onsubmit="return confirm('Fechar {{ mes.nome }} de {{ ano }}? Depois disso ninguém altera lançamentos deste mês.');">
+              <button class="botao mini ok" type="submit" {% if mes.pendencias %}disabled
+                      title="Decida os {{ mes.pendencias }} lançamento(s) pendente(s) antes de fechar"{% endif %}>
+                {{ m.icone('lock') }}Fechar mês
+              </button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if reaberturas %}
+<h2>Reaberturas em {{ ano }}</h2>
+<div class="cartao tabela-rolagem">
+  <table>
+    <thead>
+      <tr><th>Mês</th><th>Fechado por</th><th>Reaberto por</th><th>Motivo</th></tr>
+    </thead>
+    <tbody>
+      {% for r in reaberturas %}
+      <tr>
+        <td>{{ meses[r.mes - 1].nome }}</td>
+        <td>{{ r.fechado_por }}<br><span class="dica">{{ r.fechado_em }}</span></td>
+        <td>{{ r.reaberto_por }}<br><span class="dica">{{ r.reaberto_em }}</span></td>
+        <td>{{ r.motivo }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

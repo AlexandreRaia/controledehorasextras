@@ -21,6 +21,7 @@ bp = Blueprint("lancamentos", __name__, url_prefix="/lancamentos")
 STATUS_PENDENTE = "Pendente"
 HC_NAO_SOLICITADA = "Nao solicitada"
 HC_PENDENTE = "Pendente"
+MSG_FECHADO = "O mes desta data ja foi fechado. Fale com o administrador."
 
 
 def _periodo_do_pedido():
@@ -88,10 +89,14 @@ def listar():
     itens = repo.lancamentos(
         inicio=inicio, fim=fim, prontuario=prontuario or None, status=status or None
     )
+    fechamento = repo.fechamento(ano, mes)
+    for i in itens:
+        i["fechado"] = bool(fechamento)
     grupos = agrupa_por_funcionario(itens)
     total_excedido = sum(i["excedidas_seg"] or 0 for i in itens)
     return render_template(
         "lancamentos/listar.html",
+        fechamento=fechamento,
         grupos=grupos,
         itens=itens,
         funcionarios=repo.funcionarios(),
@@ -122,6 +127,8 @@ def novo():
         payload, erros, trabalhadas, excedidas = _monta_payload(
             request.form, funcionario
         )
+        if not erros and repo.mes_fechado_data(payload[S.F["lanc_data"]]):
+            erros.append(MSG_FECHADO)
         duplicado = None
         if not erros:
             duplicado = repo.existe_lancamento(
@@ -161,6 +168,9 @@ def novo():
 def editar(row_id):
     repo = get_repo()
     item = repo.lancamento(row_id)
+    if repo.mes_fechado_data(item["data"]):
+        flash(MSG_FECHADO, "erro")
+        return redirect(url_for("lancamentos.listar"))
     if item["status"] != STATUS_PENDENTE:
         flash(
             "Lancamento ja analisado pelo gestor. O RH nao pode mais altera-lo.",
@@ -181,6 +191,8 @@ def editar(row_id):
         payload, erros, trabalhadas, excedidas = _monta_payload(
             request.form, funcionario
         )
+        if not erros and repo.mes_fechado_data(payload[S.F["lanc_data"]]):
+            erros.append(MSG_FECHADO)
         if not erros:
             duplicado = repo.existe_lancamento(
                 funcionario["prontuario"], payload[S.F["lanc_data"]], ignorar_id=row_id
@@ -224,7 +236,9 @@ def editar(row_id):
 def excluir(row_id):
     repo = get_repo()
     item = repo.lancamento(row_id)
-    if item["status"] != STATUS_PENDENTE:
+    if repo.mes_fechado_data(item["data"]):
+        flash(MSG_FECHADO, "erro")
+    elif item["status"] != STATUS_PENDENTE:
         flash("Lancamento ja analisado pelo gestor. Exclusao bloqueada.", "erro")
     else:
         repo.lancamento_excluir(row_id)
@@ -244,6 +258,11 @@ def dia():
         i["prontuario"]: i
         for i in repo.lancamentos(inicio=data_iso, fim=data_iso)
     }
+
+    fechamento = repo.fechamento(int(data_iso[:4]), int(data_iso[5:7]))
+    if request.method == "POST" and fechamento:
+        flash(MSG_FECHADO, "erro")
+        return redirect(url_for("lancamentos.dia", data=data_iso))
 
     if request.method == "POST":
         usuario = usuario_atual()
@@ -297,6 +316,7 @@ def dia():
 
     return render_template(
         "lancamentos/dia.html",
+        fechamento=fechamento,
         funcionarios=funcionarios,
         existentes=existentes,
         data_iso=data_iso,

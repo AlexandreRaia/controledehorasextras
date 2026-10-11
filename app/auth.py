@@ -1,7 +1,7 @@
 """Sessao, perfis e regras de quem pode fazer o que."""
 from functools import wraps
 
-from flask import abort, flash, g, redirect, request, session, url_for
+from flask import abort, flash, g, make_response, redirect, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 PERFIL_ADMIN = "Administrador"
@@ -15,6 +15,10 @@ PERFIS = [PERFIL_ADMIN, PERFIL_RH, PERFIL_GESTOR, PERFIL_OPERACOES]
 PODE_LANCAR = {PERFIL_RH}
 PODE_DECIDIR = {PERFIL_GESTOR}
 PODE_CADASTRAR = {PERFIL_ADMIN}
+# Quem fecha atesta que o mes esta completo; reabrir e excecao e fica com quem
+# nao lanca nem decide.
+PODE_FECHAR = {PERFIL_GESTOR}
+PODE_REABRIR = {PERFIL_ADMIN}
 
 DESCRICAO_PERFIL = {
     PERFIL_ADMIN: "Mantem usuarios, funcionarios e unidades. Consulta lancamentos.",
@@ -81,10 +85,22 @@ def pode_cadastrar():
     return perfil_atual() in PODE_CADASTRAR
 
 
+def pode_fechar():
+    return perfil_atual() in PODE_FECHAR
+
+
+def pode_reabrir():
+    return perfil_atual() in PODE_REABRIR
+
+
 def login_required(view):
     @wraps(view)
     def wrapper(*args, **kwargs):
         if not usuario_atual():
+            if request.headers.get("HX-Request"):
+                resposta = make_response("", 401)
+                resposta.headers["HX-Redirect"] = url_for("auth.login")
+                return resposta
             flash("Faca login para continuar.", "aviso")
             return redirect(url_for("auth.login", proximo=request.full_path))
         g.usuario = usuario_atual()

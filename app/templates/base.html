@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Controle de Horas Extras{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+  <script src="{{ url_for('static', filename='htmx.min.js') }}" defer></script>
 </head>
 <body>
 <header class="topo">
@@ -16,6 +17,7 @@
       {% if pode_lancar %}<a href="{{ url_for('lancamentos.dia') }}">Lançar o dia</a>{% endif %}
       {% if pode_decidir %}<a href="{{ url_for('aprovacoes.listar') }}">Aprovações</a>{% endif %}
       <a href="{{ url_for('relatorios.consolidado') }}">Relatórios</a>
+      <a href="{{ url_for('fechamento.listar') }}">Fechamento</a>
       {% if pode_cadastrar %}
       <a href="{{ url_for('cadastros.funcionarios') }}">Funcionários</a>
       <a href="{{ url_for('cadastros.unidades') }}">Unidades</a>
@@ -32,6 +34,8 @@
 </header>
 
 <main class="conteudo">
+  {# id fixo: as decisoes por clique atualizam esta area sem recarregar a pagina #}
+  <div id="avisos">
   {% with mensagens = get_flashed_messages(with_categories=true) %}
     {% if mensagens %}
       <div class="avisos">
@@ -41,6 +45,7 @@
       </div>
     {% endif %}
   {% endwith %}
+  </div>
 
   {% block conteudo %}{% endblock %}
 </main>
@@ -48,5 +53,11 @@
 <footer class="rodape">
   Jornada padrão de {{ jornada_horas }} horas. Horas excedentes dependem de aprovação do gestor.
 </footer>
+<script>
+  // Se uma decisao por clique falhar, recarrega para mostrar o estado real.
+  for (const evento of ['htmx:responseError', 'htmx:sendError']) {
+    document.addEventListener(evento, () => window.location.reload());
+  }
+</script>
 </body>
 </html>

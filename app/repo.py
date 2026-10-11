@@ -7,7 +7,24 @@ from .utils import (
     calcula_jornada,
     format_date_br,
     format_datetime_br,
+    month_bounds,
+    parse_date,
 )
+
+# Lancamento que ainda exige uma decisao do gestor: horas excedentes sem
+# decisao, ou hora corrida pedida e ainda sem resposta.
+SQL_PENDENTE = """
+    ((status = 'Pendente' AND (COALESCE(excedidas_seg, 0) > 0 OR hc_solicitada))
+     OR (hc_solicitada AND hc_status = 'Pendente'))
+"""
+
+
+class MesFechado(RuntimeError):
+    """Gravacao recusada porque o mes do lancamento ja foi fechado."""
+
+    def __init__(self, ano, mes):
+        self.ano, self.mes = ano, mes
+        super().__init__(f"O mes {mes:02d}/{ano} esta fechado.")
 
 SQL_FUNCIONARIO = """
     SELECT f.id, f.nome, f.prontuario, f.telefone, f.cargo, f.unidade_id, f.ativo,
@@ -232,6 +249,7 @@ class Repo:
         return self._map_lancamento(r)
 
     def lancamento_criar(self, payload):
+        self._garante_data_aberta(payload.get(S.F["lanc_data"]))
         campos = self._colunas_lancamento(payload)
         nomes = ", ".join(campos)
         marcas = ", ".join(["%s"] * len(campos))
@@ -241,9 +259,13 @@ class Repo:
         )
 
     def lancamento_atualizar(self, row_id, payload):
+        self._garante_lancamento_aberto(row_id)
+        if S.F["lanc_data"] in payload:
+            self._garante_data_aberta(payload[S.F["lanc_data"]])
         self._atualiza("lancamentos", row_id, self._colunas_lancamento(payload))
 
     def lancamento_excluir(self, row_id):
+        self._garante_lancamento_aberto(row_id)
         self.db.executa("DELETE FROM lancamentos WHERE id = %s", (row_id,))
 
     def existe_lancamento(self, prontuario, data_iso, ignorar_id=None):
@@ -253,6 +275,85 @@ class Repo:
             ((prontuario or "").strip(), data_iso, ignorar_id),
         )
         return self._map_lancamento(r) if r else None
+
+    # ------------------------------------------------------------ fechamento
+    def _map_fechamento(self, r):
+        tz = self.config.TIMEZONE_OFFSET
+        return {
+            "id": r["id"],
+            "ano": r["ano"],
+            "mes": r["mes"],
+            "fechado_por": r["fechado_por"],
+            "fechado_em": format_datetime_br(_iso(r["fechado_em"]), tz),
+            "reaberto_por": r["reaberto_por"],
+            "reaberto_em": format_datetime_br(_iso(r["reaberto_em"]), tz),
+            "motivo": r["motivo_reabertura"],
+        }
+
+    def fechamento(self, ano, mes):
+        """O fechamento em vigor do mes, ou None se ele esta aberto."""
+        r = self.db.um(
+            "SELECT * FROM fechamentos WHERE ano = %s AND mes = %s AND reaberto_em IS NULL",
+            (ano, mes),
+        )
+        return self._map_fechamento(r) if r else None
+
+    def mes_fechado_data(self, data_iso):
+        data = parse_date(data_iso)
+        if not data:
+            return False
+        return self.fechamento(int(data[:4]), int(data[5:7])) is not None
+
+    def fechamentos_do_ano(self, ano):
+        rows = self.db.todos(
+            "SELECT * FROM fechamentos WHERE ano = %s ORDER BY fechado_em DESC", (ano,)
+        )
+        return [self._map_fechamento(r) for r in rows]
+
+    def pendencias_do_ano(self, ano):
+        """Quantos lancamentos ainda esperam decisao, por mes: {mes: quantidade}."""
+        rows = self.db.todos(
+            "SELECT EXTRACT(MONTH FROM data)::int AS mes, count(*) AS n FROM lancamentos"
+            " WHERE data BETWEEN %s AND %s AND " + SQL_PENDENTE + " GROUP BY 1",
+            (f"{ano}-01-01", f"{ano}-12-31"),
+        )
+        return {r["mes"]: r["n"] for r in rows}
+
+    def fechar_mes(self, ano, mes, por):
+        """Fecha o mes se nao ha pendencia. False se ja estava fechado ou ha pendencia."""
+        inicio, fim = month_bounds(ano, mes)
+        r = self.db.um(
+            "INSERT INTO fechamentos (ano, mes, fechado_por)"
+            " SELECT %s::int, %s::int, %s::text"
+            " WHERE NOT EXISTS (SELECT 1 FROM lancamentos"
+            "                   WHERE data BETWEEN %s AND %s AND " + SQL_PENDENTE + ")"
+            " ON CONFLICT DO NOTHING RETURNING id",
+            (ano, mes, por, inicio, fim),
+        )
+        return r is not None
+
+    def reabrir_mes(self, ano, mes, por, motivo):
+        alteradas = self.db.executa(
+            "UPDATE fechamentos SET reaberto_por = %s, reaberto_em = now(),"
+            " motivo_reabertura = %s WHERE ano = %s AND mes = %s AND reaberto_em IS NULL",
+            (por, motivo, ano, mes),
+        )
+        return alteradas > 0
+
+    def _garante_data_aberta(self, data_iso):
+        data = parse_date(data_iso)
+        if data and self.mes_fechado_data(data):
+            raise MesFechado(int(data[:4]), int(data[5:7]))
+
+    def _garante_lancamento_aberto(self, row_id):
+        r = self.db.um(
+            "SELECT l.data FROM lancamentos l JOIN fechamentos f"
+            " ON f.ano = EXTRACT(YEAR FROM l.data) AND f.mes = EXTRACT(MONTH FROM l.data)"
+            " AND f.reaberto_em IS NULL WHERE l.id = %s",
+            (row_id,),
+        )
+        if r:
+            raise MesFechado(r["data"].year, r["data"].month)
 
     # ------------------------------------------------------------- auxiliares
     @staticmethod

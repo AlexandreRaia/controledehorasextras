@@ -9,6 +9,7 @@ from .. import get_repo
 from .. import schema as S
 from ..auth import PERFIL_GESTOR, perfil_required, usuario_atual
 from ..config import Config
+from ..repo import MesFechado
 from ..utils import (
     agrupa_por_funcionario,
     calcula_jornada,
@@ -87,6 +88,9 @@ def listar():
     status = request.args.get("status", "Pendente")
 
     itens = repo.lancamentos(inicio=inicio, fim=fim, status=status or None)
+    fechamento = repo.fechamento(ano, mes)
+    for i in itens:
+        i["fechado"] = bool(fechamento)
     # Sem horas excedentes e sem HC nao ha o que decidir.
     relevantes = [
         i for i in itens if (i["excedidas_seg"] or 0) > 0 or i["hc_solicitada"]
@@ -96,6 +100,7 @@ def listar():
 
     return render_template(
         "aprovacoes/listar.html",
+        fechamento=fechamento,
         grupos=agrupa_por_funcionario(mostrados),
         itens=mostrados,
         ano=ano,
@@ -111,6 +116,9 @@ def listar():
 def decidir(row_id):
     repo = get_repo()
     item = repo.lancamento(row_id)
+    if repo.mes_fechado_data(item["data"]):
+        flash("O mes deste lancamento ja foi fechado. Fale com o administrador.", "erro")
+        return redirect(url_for("aprovacoes.listar"))
 
     if request.method == "POST":
         status = request.form.get("decisao")
@@ -148,7 +156,7 @@ def decidir_horas(row_id):
     _grava_decisao(repo, item, status=valor)
     flash(
         f"{item['funcionario'] or item['prontuario']} em {item['data_br']}: "
-        f"horas {valor.lower()}s.",
+        f"horas {'aprovadas' if valor == 'Aprovado' else 'rejeitadas'}.",
         "ok",
     )
     return redirect(_de_volta())
@@ -196,14 +204,20 @@ def lote():
 
     ids = request.form.getlist("selecionados")
     hc_decisao = "Autorizada" if status == "Aprovado" else "Negada"
-    total = 0
+    total, bloqueados = 0, 0
     for bruto in ids:
         try:
             item = repo.lancamento(int(bruto))
         except (ValueError, TypeError):
             continue
-        _decide(repo, item, status, hc_decisao, parecer)
+        try:
+            _decide(repo, item, status, hc_decisao, parecer)
+        except MesFechado:
+            bloqueados += 1
+            continue
         total += 1
 
     flash(f"{total} lancamento(s) marcados como {status.lower()}.", "ok" if total else "aviso")
+    if bloqueados:
+        flash(f"{bloqueados} lancamento(s) de mes fechado foram preservados.", "aviso")
     return redirect(request.referrer or url_for("aprovacoes.listar"))

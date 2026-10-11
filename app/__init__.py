@@ -1,19 +1,29 @@
 """Fabrica da aplicacao Flask de Controle de Horas Extras."""
 import logging
 
-from flask import Flask, render_template
+from urllib.parse import urlparse
+
+from flask import Flask, flash, redirect, render_template, request, url_for
 
 from .auth import (
     pode_cadastrar,
     pode_decidir,
+    pode_fechar,
     pode_lancar,
+    pode_reabrir,
     perfil_atual,
     usuario_atual,
 )
 from .db import DBError
 from .config import Config
-from .repo import Repo
-from .utils import format_date_br, format_datetime_br, format_duration, horas_decimais
+from .repo import MesFechado, Repo
+from .utils import (
+    format_date_br,
+    format_datetime_br,
+    format_duration,
+    horas_decimais,
+    ident,
+)
 
 _repo = None
 _repo_erro = None
@@ -50,18 +60,22 @@ def create_app(config_object=Config):
     app.config.from_object(config_object)
     logging.basicConfig(level=logging.INFO)
 
-    from .views import aprovacoes, auth as auth_views, cadastros, lancamentos, relatorios
+    from .views import (
+        aprovacoes, auth as auth_views, cadastros, fechamento, lancamentos, relatorios,
+    )
 
     app.register_blueprint(auth_views.bp)
     app.register_blueprint(lancamentos.bp)
     app.register_blueprint(aprovacoes.bp)
     app.register_blueprint(cadastros.bp)
     app.register_blueprint(relatorios.bp)
+    app.register_blueprint(fechamento.bp)
 
     app.jinja_env.filters["dur"] = format_duration
     app.jinja_env.filters["data_br"] = format_date_br
     app.jinja_env.filters["datahora_br"] = format_datetime_br
     app.jinja_env.filters["hdec"] = horas_decimais
+    app.jinja_env.filters["ident"] = ident
 
     @app.context_processor
     def injeta_contexto():
@@ -71,6 +85,8 @@ def create_app(config_object=Config):
             "pode_lancar": pode_lancar(),
             "pode_decidir": pode_decidir(),
             "pode_cadastrar": pode_cadastrar(),
+            "pode_fechar": pode_fechar(),
+            "pode_reabrir": pode_reabrir(),
             "jornada_horas": app.config["JORNADA_PADRAO_SEGUNDOS"] // 3600,
         }
 
@@ -89,6 +105,15 @@ def create_app(config_object=Config):
             titulo="Pagina nao encontrada",
             mensagem="O endereco acessado nao existe.",
         ), 404
+
+    @app.errorhandler(MesFechado)
+    def mes_fechado(erro):
+        """Rede de seguranca: nenhuma gravacao passa por um mes fechado."""
+        flash(f"{erro} Fale com o administrador para reabri-lo.", "erro")
+        origem = request.referrer
+        if origem and urlparse(origem).netloc == request.host:
+            return redirect(origem)
+        return redirect(url_for("lancamentos.listar"))
 
     @app.errorhandler(DBError)
     def erro_banco(erro):

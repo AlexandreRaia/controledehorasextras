@@ -234,3 +234,13 @@ textarea { min-height: 70px; resize: vertical; }
 .resumo .r-pendente { color: var(--aviso); }
 .resumo .r-nao { color: var(--erro); }
 .resumo .r-hc { color: var(--suave); }
+
+/* ------------------------------------------- gravando uma decisao (htmx) */
+.htmx-request button { opacity: .55; cursor: progress; }
+
+/* ------------------------------------------------------------ fechamento */
+.faixa-fechado { display: flex; gap: 10px; align-items: center; }
+.faixa-fechado .icone { width: 16px; height: 16px; }
+form.reabrir { display: flex; gap: 6px; align-items: center; }
+form.reabrir input { padding: 4px 8px; font-size: 12px; min-width: 190px; }
+button:disabled { opacity: .45; cursor: not-allowed; }

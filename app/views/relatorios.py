@@ -53,6 +53,7 @@ def consolidado():
     )
     return render_template(
         "relatorios/consolidado.html",
+        fechamento=repo.fechamento(ano, mes),
         linhas=agrupa_por_funcionario(itens),
         unidades=repo.unidades(),
         ano=ano,

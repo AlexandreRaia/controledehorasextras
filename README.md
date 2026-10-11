@@ -22,6 +22,26 @@ Duas travas garantem a separação de funções:
 
 O administrador mantém cadastros, mas não lança nem aprova, pela mesma razão.
 
+## Fechamento do mês
+
+Depois que as horas de um mês vão para a folha, ele é fechado, e nada mais
+muda naquele período: ninguém lança, edita, exclui nem decide.
+
+- **Quem fecha:** o Gestor, que atesta que o mês está completo. O sistema só
+  aceita o fechamento quando não resta lançamento esperando decisão, seja de
+  horas excedentes ou de hora corrida pedida. Dias sem excedente e sem pedido
+  de hora corrida não impedem o fechamento.
+- **Quem reabre:** só o Administrador, informando o motivo. Cada fechamento e
+  cada reabertura ficam registrados na tabela `fechamentos`, com quem fez e
+  quando, e a tela de Fechamento lista as reaberturas do ano.
+- **Onde fica a trava:** dentro do repositório (`app/repo.py`), em toda criação,
+  alteração e exclusão de lançamento. Assim nenhuma rota esquece de checar. As
+  telas escondem os botões, mas a regra vale mesmo para uma requisição forjada.
+- Não se fecha um mês que ainda não começou.
+
+Quem pode fechar e reabrir está em `PODE_FECHAR` e `PODE_REABRIR`, em
+`app/auth.py`.
+
 ## Cálculo
 
 A permanência é a diferença entre saída e entrada. Saída menor que a entrada é
@@ -125,7 +145,15 @@ aprovações e os demais perfis para a lista de lançamentos.
   gestor. Há também decisão em lote para resolver vários dias de uma vez.
 - **Relatórios**: consolidado por funcionário, detalhe dia a dia e exportação
   em CSV separado por ponto e vírgula, pronto para o Excel.
+- **Fechamento**: situação dos doze meses do ano, com o que ainda espera
+  decisão, o botão de fechar para o Gestor e o de reabrir para o Administrador.
 - **Cadastros**: unidades, funcionários e usuários.
+
+Os botões do gestor atualizam só o bloco do funcionário, o aviso e o total
+geral, sem recarregar a página nem perder a rolagem. Isso usa o htmx, que está
+em `app/static/htmx.min.js` (versão 2.0.4, sem depender de CDN). Sem JavaScript
+os mesmos formulários funcionam recarregando a página, e se a sessão expirou o
+clique leva ao login.
 
 ## Testes
 
@@ -133,7 +161,8 @@ aprovações e os demais perfis para a lista de lançamentos.
 .venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-Os testes usam um repositório em memória e não tocam no banco. Cobrem o
+Os testes usam um repositório em memória e não tocam no banco. O SQL do
+repositório não é coberto por eles: foi conferido à mão contra um PostgreSQL real. Cobrem o
 cálculo de horas, o login, as permissões de cada perfil e as duas travas de
 separação de funções.
 
@@ -146,7 +175,7 @@ app/
   repo.py         leitura e escrita das quatro tabelas
   auth.py         sessão, perfis e decoradores de permissão
   utils.py        conversões de hora e data
-  views/          rotas por assunto
+  views/          rotas por assunto (lançamentos, aprovações, fechamento...)
   templates/      telas
 tools/
   setup_db.py     criação das tabelas e usuários iniciais

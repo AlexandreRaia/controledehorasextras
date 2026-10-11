@@ -6,6 +6,11 @@ _HHMM = re.compile(r"^(\d{1,3})\s*[:hH]\s*(\d{1,2})$")
 _ONLY_H = re.compile(r"^(\d{1,3})\s*[hH]?$")
 
 
+def ident(valor):
+    """Texto seguro para usar em id de HTML e em seletor CSS."""
+    return re.sub(r"[^A-Za-z0-9_-]", "_", str(valor or ""))
+
+
 def parse_duration(value):
     """Converte '8:30', '8h30', '8' ou segundos em segundos inteiros."""
     if value is None or value == "":
@@ -179,6 +184,13 @@ def format_datetime_br(value, offset_hours=-3):
         momento = momento.astimezone(timezone.utc) + timedelta(hours=offset_hours)
         momento = momento.replace(tzinfo=None)
     return momento.strftime("%d/%m/%Y %H:%M")
+
+
+MESES = [
+    (1, "Janeiro"), (2, "Fevereiro"), (3, "Março"), (4, "Abril"),
+    (5, "Maio"), (6, "Junho"), (7, "Julho"), (8, "Agosto"),
+    (9, "Setembro"), (10, "Outubro"), (11, "Novembro"), (12, "Dezembro"),
+]
 
 
 def month_bounds(ano, mes):

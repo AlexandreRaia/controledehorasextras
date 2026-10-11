@@ -9,10 +9,12 @@ from app import create_app, set_repo  # noqa: E402
 from app import schema as S  # noqa: E402
 from app.auth import hash_senha  # noqa: E402
 from app.config import Config  # noqa: E402
+from app.repo import MesFechado  # noqa: E402
 from app.utils import (  # noqa: E402
     agrupa_por_funcionario,
     calcula_jornada,
     format_duration,
+    ident,
     parse_duration,
 )
 
@@ -87,6 +89,7 @@ class RepoFalso:
 
     def __init__(self):
         self.gravacoes = []
+        self._fechamentos = []
         self._unidades = [{"id": 18, "nome": "Detran"}, {"id": 19, "nome": "SMA"}]
         self._funcionarios = [{
             "id": 1, "nome": "Alexandre P. S. Raia", "prontuario": "25755",
@@ -175,12 +178,62 @@ class RepoFalso:
     def existe_lancamento(self, prontuario, data_iso, ignorar_id=None):
         return None
 
+    # --- fechamento
+    def fechamento(self, ano, mes):
+        return next(
+            (f for f in self._fechamentos
+             if (f["ano"], f["mes"]) == (ano, mes) and not f["reaberto_em"]), None)
+
+    def mes_fechado_data(self, data_iso):
+        return bool(data_iso) and self.fechamento(int(data_iso[:4]), int(data_iso[5:7])) is not None
+
+    def fechamentos_do_ano(self, ano):
+        return [f for f in self._fechamentos if f["ano"] == ano]
+
+    def pendencias_do_ano(self, ano):
+        n = {}
+        for i in self._lancamentos.values():
+            if not i["data"].startswith(str(ano)):
+                continue
+            pendente = (i["status"] == "Pendente"
+                        and ((i["excedidas_seg"] or 0) > 0 or i["hc_solicitada"])) \
+                or (i["hc_solicitada"] and i["hc_status"] == "Pendente")
+            if pendente:
+                mes = int(i["data"][5:7])
+                n[mes] = n.get(mes, 0) + 1
+        return n
+
+    def fechar_mes(self, ano, mes, por):
+        if self.fechamento(ano, mes) or self.pendencias_do_ano(ano).get(mes):
+            return False
+        self._fechamentos.append({
+            "id": len(self._fechamentos) + 1, "ano": ano, "mes": mes,
+            "fechado_por": por, "fechado_em": "11/10/2026 10:00",
+            "reaberto_por": "", "reaberto_em": "", "motivo": "",
+        })
+        self.gravacoes.append(("fechar", ano, mes))
+        return True
+
+    def reabrir_mes(self, ano, mes, por, motivo):
+        atual = self.fechamento(ano, mes)
+        if not atual:
+            return False
+        atual.update(reaberto_por=por, reaberto_em="11/10/2026 11:00", motivo=motivo)
+        self.gravacoes.append(("reabrir", ano, mes, motivo))
+        return True
+
+    def _garante_aberto(self, data_iso):
+        if self.mes_fechado_data(data_iso):
+            raise MesFechado(int(data_iso[:4]), int(data_iso[5:7]))
+
     # --- escrita
     def lancamento_criar(self, payload):
+        self._garante_aberto(payload.get(S.F["lanc_data"]))
         self.gravacoes.append(("criar", payload))
         return {"id": 999}
 
     def lancamento_atualizar(self, row_id, payload):
+        self._garante_aberto(self._lancamentos[row_id]["data"])
         self.gravacoes.append(("atualizar", row_id, payload))
         self._lancamentos[row_id].update(
             {"status": payload.get(S.F["lanc_status"], self._lancamentos[row_id]["status"])}
@@ -188,6 +241,7 @@ class RepoFalso:
         return {"id": row_id}
 
     def lancamento_excluir(self, row_id):
+        self._garante_aberto(self._lancamentos[row_id]["data"])
         self.gravacoes.append(("excluir", row_id))
 
 
@@ -490,6 +544,167 @@ class TestLancamentoNovo(BaseWeb):
         self.assertEqual(payload[S.F["lanc_status"]], "Pendente")
         self.assertEqual(payload[S.F["lanc_hc_status"]], "Pendente")
         self.assertEqual(payload[S.F["lanc_lancado_por"]], "Flavio Galisteu")
+
+
+class TestFechamento(BaseWeb):
+    """O gestor fecha o mes, o administrador reabre, e nada grava em mes fechado."""
+
+    def decide_tudo(self):
+        for i in self.repo._lancamentos.values():
+            i["status"], i["hc_status"] = "Aprovado", "Autorizada"
+
+    def como(self, login):
+        self.cliente.get("/logout")
+        self.entrar(login)
+
+    def fecha_outubro(self):
+        self.decide_tudo()
+        self.como("fernando")
+        self.cliente.post("/fechamento/2026/10/fechar")
+        self.repo.gravacoes.clear()
+
+    def test_nao_fecha_com_pendencia(self):
+        self.como("fernando")
+        resposta = self.cliente.post("/fechamento/2026/10/fechar", follow_redirects=True)
+        self.assertIn("esperando decisao", resposta.get_data(as_text=True))
+        self.assertIsNone(self.repo.fechamento(2026, 10))
+
+    def test_gestor_fecha_quando_nao_ha_pendencia(self):
+        self.decide_tudo()
+        self.como("fernando")
+        self.cliente.post("/fechamento/2026/10/fechar")
+        fechamento = self.repo.fechamento(2026, 10)
+        self.assertEqual(fechamento["fechado_por"], "Fernando Cruz")
+
+    def test_so_o_gestor_fecha(self):
+        self.decide_tudo()
+        for login in ("flavio", "veridiana", "alexandre"):
+            self.como(login)
+            resposta = self.cliente.post("/fechamento/2026/10/fechar")
+            self.assertEqual(resposta.status_code, 403, login)
+        self.assertIsNone(self.repo.fechamento(2026, 10))
+
+    def test_nao_fecha_mes_que_nao_comecou(self):
+        self.como("fernando")
+        self.cliente.post("/fechamento/2099/1/fechar")
+        self.assertIsNone(self.repo.fechamento(2099, 1))
+
+    def test_so_o_admin_reabre_e_com_motivo(self):
+        self.fecha_outubro()
+        for login in ("fernando", "flavio", "veridiana"):
+            self.como(login)
+            resposta = self.cliente.post("/fechamento/2026/10/reabrir", data={"motivo": "erro de digitacao"})
+            self.assertEqual(resposta.status_code, 403, login)
+        self.como("alexandre")
+        self.cliente.post("/fechamento/2026/10/reabrir", data={"motivo": "  "})
+        self.assertIsNotNone(self.repo.fechamento(2026, 10), "sem motivo nao reabre")
+        self.cliente.post("/fechamento/2026/10/reabrir", data={"motivo": "erro de digitacao"})
+        self.assertIsNone(self.repo.fechamento(2026, 10))
+        self.assertEqual(self.repo.gravacoes[-1], ("reabrir", 2026, 10, "erro de digitacao"))
+
+    def test_reaberto_volta_a_aceitar_gravacoes(self):
+        self.fecha_outubro()
+        self.como("alexandre")
+        self.cliente.post("/fechamento/2026/10/reabrir", data={"motivo": "ajuste combinado"})
+        self.como("fernando")
+        self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado"})
+        self.assertEqual(self.repo.gravacoes[-1][0], "atualizar")
+
+    def test_rh_nao_lanca_edita_nem_exclui_em_mes_fechado(self):
+        self.fecha_outubro()
+        self.como("flavio")
+        resposta = self.cliente.post(
+            "/lancamentos/novo",
+            data={"data": "2026-10-15", "funcionario_id": "27", "entrada": "8:00", "saida": "20:00"},
+        )
+        self.assertIn("ja foi fechado", resposta.get_data(as_text=True))
+        self.cliente.get("/lancamentos/100/editar")
+        self.cliente.post("/lancamentos/100/editar", data={
+            "data": "2026-10-01", "funcionario_id": "1", "entrada": "8:00", "saida": "21:00"})
+        self.cliente.post("/lancamentos/100/excluir")
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_gestor_nao_decide_em_mes_fechado(self):
+        self.fecha_outubro()
+        self.como("fernando")
+        self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado"})
+        self.cliente.post("/aprovacoes/100/hc", data={"valor": "Negada"})
+        self.cliente.post("/aprovacoes/100", data={"decisao": "Rejeitado", "parecer": "x", "hc_decisao": "Negada"})
+        self.assertEqual(self.repo.gravacoes, [])
+        self.assertEqual(self.repo._lancamentos[100]["status"], "Aprovado")
+
+    def test_lote_preserva_mes_fechado(self):
+        self.fecha_outubro()
+        self.como("fernando")
+        resposta = self.cliente.post(
+            "/aprovacoes/lote", data={"decisao": "Rejeitado", "parecer": "x", "selecionados": ["100", "102"]},
+            follow_redirects=True,
+        )
+        self.assertIn("preservados", resposta.get_data(as_text=True))
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_listas_mostram_o_aviso_e_escondem_os_botoes(self):
+        self.fecha_outubro()
+        self.como("fernando")
+        for rota in ("/aprovacoes/?mes=10&ano=2026&status=", "/lancamentos/?mes=10&ano=2026"):
+            html = self.cliente.get(rota).get_data(as_text=True)
+            self.assertIn("Mês fechado", html, rota)
+            self.assertNotIn('name="valor" value="Aprovado"', html, rota)
+            self.assertNotIn('name="valor" value="Autorizada"', html, rota)
+        self.assertNotIn("Analisar", self.cliente.get("/aprovacoes/?mes=10&ano=2026&status=").get_data(as_text=True))
+        self.como("flavio")
+        html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
+        self.assertNotIn("/editar", html)
+        self.assertIn("Mês fechado", html)
+        self.assertIn("Mês fechado", self.cliente.get("/relatorios?mes=10&ano=2026").get_data(as_text=True))
+
+    def test_grade_do_dia_recusa_mes_fechado(self):
+        self.fecha_outubro()
+        self.como("flavio")
+        self.cliente.post("/lancamentos/dia", data={"data": "2026-10-20", "entrada_27": "8:00", "saida_27": "17:00"})
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_pagina_de_fechamento_para_todos_os_perfis(self):
+        for login in ("flavio", "fernando", "veridiana", "alexandre"):
+            self.como(login)
+            resposta = self.cliente.get("/fechamento/?ano=2026")
+            self.assertEqual(resposta.status_code, 200, login)
+        html = self.cliente.get("/fechamento/?ano=2026").get_data(as_text=True)
+        self.assertNotIn(">Fechar mês<", html, "o admin nao fecha")
+        self.como("fernando")
+        self.assertIn("Fechar mês", self.cliente.get("/fechamento/?ano=2026").get_data(as_text=True))
+
+
+class TestAtualizacaoParcial(BaseWeb):
+    """htmx: so o bloco do funcionario e os totais mudam na tela."""
+
+    def test_ident_gera_id_seguro(self):
+        self.assertEqual(ident("22345"), "22345")
+        self.assertEqual(ident("Ana Maria/2"), "Ana_Maria_2")
+
+    def test_blocos_e_botoes_tem_os_atributos_do_htmx(self):
+        self.entrar("fernando")
+        html = self.cliente.get("/aprovacoes/?mes=10&ano=2026").get_data(as_text=True)
+        self.assertIn('id="g-25755"', html)
+        self.assertIn('hx-select="#g-25755"', html)
+        self.assertIn('hx-select-oob="#avisos,#total-geral"', html)
+        self.assertIn('hx-post="/aprovacoes/100/horas"', html)
+        self.assertIn('id="total-geral"', html)
+        self.assertIn('id="avisos"', html)
+        # sem JavaScript o formulario continua funcionando
+        self.assertIn('action="/aprovacoes/100/horas"', html)
+
+    def test_sessao_expirada_em_clique_manda_para_o_login(self):
+        resposta = self.cliente.post(
+            "/aprovacoes/100/horas", data={"valor": "Aprovado"}, headers={"HX-Request": "true"}
+        )
+        self.assertEqual(resposta.status_code, 401)
+        self.assertTrue(resposta.headers["HX-Redirect"].endswith("/login"))
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_sem_htmx_o_comportamento_antigo_segue(self):
+        resposta = self.cliente.post("/aprovacoes/100/horas", data={"valor": "Aprovado"})
+        self.assertEqual(resposta.status_code, 302)
 
 
 if __name__ == "__main__":

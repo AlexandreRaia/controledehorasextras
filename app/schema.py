@@ -60,6 +60,21 @@ CREATE TABLE IF NOT EXISTS lancamentos (
 );
 CREATE INDEX IF NOT EXISTS lancamentos_data ON lancamentos (data);
 CREATE INDEX IF NOT EXISTS lancamentos_prontuario_data ON lancamentos (prontuario, data);
+
+-- Um registro por fechamento. Enquanto reaberto_em e nulo, o mes esta fechado;
+-- reabrir preenche a reabertura e preserva o historico.
+CREATE TABLE IF NOT EXISTS fechamentos (
+    id                 SERIAL PRIMARY KEY,
+    ano                INTEGER NOT NULL,
+    mes                INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
+    fechado_por        TEXT NOT NULL,
+    fechado_em         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    reaberto_por       TEXT NOT NULL DEFAULT '',
+    reaberto_em        TIMESTAMPTZ,
+    motivo_reabertura  TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS fechamentos_mes_fechado
+    ON fechamentos (ano, mes) WHERE reaberto_em IS NULL;
 """
 
 # Colunas de lancamentos que as views gravam. As views montam o payload com

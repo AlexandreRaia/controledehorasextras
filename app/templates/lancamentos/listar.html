@@ -11,6 +11,8 @@
   A hora de almoço não entra no excedente, salvo quando a hora corrida é autorizada.
 </p>
 
+{{ m.faixa_fechado(fechamento) }}
+
 <form class="cartao filtros" method="get">
   {{ m.seletor_mes(ano, mes) }}
   <div class="campo">
@@ -59,7 +61,8 @@
       </tr>
     </thead>
     {% for g in grupos %}
-    <tbody>
+    <tbody id="g-{{ g.chave | ident }}" hx-target="this" hx-swap="outerHTML"
+           hx-select="#g-{{ g.chave | ident }}" hx-select-oob="#avisos,#total-geral">
       <tr class="grupo">
         <td colspan="{{ colunas }}">
           <strong>{{ g.funcionario }}</strong>
@@ -88,7 +91,7 @@
         <td>{{ i.lancado_por }}</td>
         {% if pode_lancar %}
         <td>
-          {% if i.status == 'Pendente' %}
+          {% if i.status == 'Pendente' and not i.fechado %}
           <div class="acoes">
             <a class="botao mini secundario" href="{{ url_for('lancamentos.editar', row_id=i.id) }}">Editar</a>
             <form method="post" action="{{ url_for('lancamentos.excluir', row_id=i.id) }}"
@@ -97,7 +100,7 @@
             </form>
           </div>
           {% else %}
-          <span class="dica">Bloqueado pelo gestor</span>
+          <span class="dica">{{ 'Mês fechado' if i.fechado else 'Bloqueado pelo gestor' }}</span>
           {% endif %}
         </td>
         {% endif %}
@@ -124,15 +127,15 @@
       <tr><td colspan="{{ colunas }}" class="vazio">Nenhum lançamento no período.</td></tr>
     </tbody>
     {% endfor %}
+    <tfoot id="total-geral">
     {% if grupos %}
-    <tfoot>
       <tr>
         <td colspan="6">Total geral de {{ grupos | length }} funcionário(s)</td>
         <td class="num">{{ total_excedido | dur }}</td>
         <td colspan="{{ colunas - 7 }}"></td>
       </tr>
-    </tfoot>
     {% endif %}
+    </tfoot>
   </table>
 </div>
 {% endblock %}

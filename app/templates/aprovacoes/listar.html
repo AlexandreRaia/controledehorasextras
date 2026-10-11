@@ -11,6 +11,8 @@
   a contar como excedente. Para mudar uma decisão já tomada, use "alterar".
 </p>
 
+{{ m.faixa_fechado(fechamento) }}
+
 <form class="cartao filtros" method="get">
   {{ m.seletor_mes(ano, mes) }}
   <div class="campo estreito">
@@ -45,7 +47,8 @@
       </tr>
     </thead>
     {% for g in grupos %}
-    <tbody>
+    <tbody id="g-{{ g.chave | ident }}" hx-target="this" hx-swap="outerHTML"
+           hx-select="#g-{{ g.chave | ident }}" hx-select-oob="#avisos,#total-geral">
       <tr class="grupo">
         <td></td>
         <td colspan="10">
@@ -55,7 +58,7 @@
       </tr>
       {% for i in g.itens %}
       <tr>
-        <td><input type="checkbox" form="lote" name="selecionados" value="{{ i.id }}"></td>
+        <td>{% if not i.fechado %}<input type="checkbox" form="lote" name="selecionados" value="{{ i.id }}">{% endif %}</td>
         <td>{{ i.data_br }}</td>
         <td class="num">{{ i.permanencia_seg | dur }}</td>
         <td class="num">{{ i.almoco_seg | dur }}</td>
@@ -73,7 +76,7 @@
           {{ m.decidir_horas(i, voltar) }}
         </td>
         <td>{{ i.decidido_por }}{% if i.decidido_em %}<br><span class="dica">{{ i.decidido_em }}</span>{% endif %}</td>
-        <td><a class="botao mini secundario" href="{{ url_for('aprovacoes.decidir', row_id=i.id) }}">Analisar</a></td>
+        <td>{% if not i.fechado %}<a class="botao mini secundario" href="{{ url_for('aprovacoes.decidir', row_id=i.id) }}">Analisar</a>{% endif %}</td>
       </tr>
       {% endfor %}
       <tr class="subtotal">
@@ -97,15 +100,15 @@
       <tr><td colspan="11" class="vazio">Nada a decidir neste filtro.</td></tr>
     </tbody>
     {% endfor %}
+    <tfoot id="total-geral">
     {% if grupos %}
-    <tfoot>
       <tr>
         <td colspan="5">Total geral de {{ grupos | length }} funcionário(s)</td>
         <td class="num">{{ total_excedido | dur }}</td>
         <td colspan="5"></td>
       </tr>
-    </tfoot>
     {% endif %}
+    </tfoot>
   </table>
 </div>
 
