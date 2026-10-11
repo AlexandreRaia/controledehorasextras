@@ -100,7 +100,9 @@ tr.subtotal .dica { font-weight: 500; }
 
 /* ----------------------------------------------------------- etiquetas */
 .etiqueta {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 12px;
@@ -112,6 +114,8 @@ tr.subtotal .dica { font-weight: 500; }
 .e-aprovado { background: var(--ok-fundo); color: var(--ok); }
 .e-rejeitado { background: var(--erro-fundo); color: var(--erro); }
 .e-neutro { background: #eceff3; color: var(--suave); }
+.icone { width: 12px; height: 12px; flex: none; }
+.botao .icone { margin-right: 4px; vertical-align: -1px; }
 
 /* ------------------------------------------------------------- formulario */
 form .linha {
@@ -165,26 +169,25 @@ textarea { min-height: 70px; resize: vertical; }
 .decisao { display: flex; gap: 6px; align-items: center; }
 .decisao form { display: inline; }
 
-/* O estado escolhido fica cheio; o outro fica so contornado. */
-.botao.mini.ok:not(.ativo) { background: #fff; color: var(--ok); border-color: #b7e0c9; }
-.botao.mini.ok:not(.ativo):hover { background: var(--ok-fundo); }
-.botao.mini.perigo:not(.ativo) { background: #fff; color: var(--erro); border-color: #f3c3bf; }
-.botao.mini.perigo:not(.ativo):hover { background: var(--erro-fundo); }
+/* Botoes de decisao sao acoes: contornados, preenchem ao passar o mouse. */
+.decisao .botao.mini.ok { background: #fff; color: var(--ok); border-color: #b7e0c9; }
+.decisao .botao.mini.ok:hover { background: var(--ok); color: #fff; }
+.decisao .botao.mini.perigo { background: #fff; color: var(--erro); border-color: #f3c3bf; }
+.decisao .botao.mini.perigo:hover { background: var(--erro); color: #fff; }
 
-.polegar {
-  font-size: 17px;
-  line-height: 1;
-  padding: 4px 8px;
-  border: 1px solid var(--borda);
-  border-radius: 6px;
-  background: #fff;
+/* "alterar": link discreto que abre a opcao contraria ao lado da etiqueta. */
+.alterar { display: inline-flex; align-items: center; gap: 6px; }
+.alterar summary {
+  list-style: none;
   cursor: pointer;
-  filter: grayscale(1);
-  opacity: .55;
+  font-size: 12px;
+  color: var(--suave);
+  text-decoration: underline dotted;
 }
-.polegar:hover { filter: none; opacity: 1; }
-.polegar.cima.ativo { filter: none; opacity: 1; background: var(--ok-fundo); border-color: var(--ok); }
-.polegar.baixo.ativo { filter: none; opacity: 1; background: var(--erro-fundo); border-color: var(--erro); }
+.alterar summary::-webkit-details-marker { display: none; }
+.alterar summary:hover { color: var(--primaria); }
+.alterar[open] summary { color: var(--primaria); }
+.alterar[open] { gap: 6px; }
 
 /* ---------------------------------------------------------------- cards */
 .indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
@@ -223,3 +226,11 @@ textarea { min-height: 70px; resize: vertical; }
   .topo-interno { flex-direction: column; align-items: flex-start; }
   .sessao { width: 100%; }
 }
+
+/* ------------------------------------------- resumo por decisao (relatorio) */
+.resumo { display: inline-flex; flex-wrap: wrap; gap: 12px; font-weight: 600; }
+.resumo > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.resumo .r-ok { color: var(--ok); }
+.resumo .r-pendente { color: var(--aviso); }
+.resumo .r-nao { color: var(--erro); }
+.resumo .r-hc { color: var(--suave); }

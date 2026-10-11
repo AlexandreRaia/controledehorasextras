@@ -77,12 +77,12 @@
         <td class="num">{{ i.excedidas_seg | dur }}</td>
         <td>
           {% if pode_decidir %}
-            {{ m.decidir_horas(i, voltar) }}<span class="dica">{{ i.status }}</span>
+            {{ m.decidir_horas(i, voltar) }}
           {% else %}{{ m.etiqueta_status(i.status) }}{% endif %}
         </td>
         <td>
           {% if pode_decidir %}
-            {{ m.decidir_hc(i, voltar) }}<span class="dica">{{ i.hc_status }}</span>
+            {{ m.decidir_hc(i, voltar) }}
           {% else %}{{ m.etiqueta_hc(i) }}{% endif %}
         </td>
         <td>{{ i.lancado_por }}</td>

@@ -1,259 +1,172 @@
-"""Camada de dados: traduz linhas do Baserow em dicionarios do dominio."""
+"""Camada de dados: consultas no PostgreSQL devolvendo dicionarios do dominio."""
+from flask import abort
+
 from . import schema as S
-from .baserow import BaserowClient, BaserowError, load_cache, save_cache
+from .db import Database, DBError
 from .utils import (
     calcula_jornada,
     format_date_br,
     format_datetime_br,
-    link_ids,
-    link_values,
-    parse_date,
-    parse_duration,
-    select_value,
 )
 
-READ_ONLY_TYPES = {
-    "formula", "lookup", "rollup", "count", "uuid", "autonumber",
-    "created_on", "last_modified", "created_by", "last_modified_by",
-}
+SQL_FUNCIONARIO = """
+    SELECT f.id, f.nome, f.prontuario, f.telefone, f.cargo, f.unidade_id, f.ativo,
+           COALESCE(u.nome, '') AS unidade
+      FROM funcionarios f
+      LEFT JOIN unidades u ON u.id = f.unidade_id
+"""
 
-CAMPO_DATA = S.F["lanc_data"]
+SQL_LANCAMENTO = """
+    SELECT l.*, COALESCE(f.nome, '') AS funcionario
+      FROM lancamentos l
+      LEFT JOIN funcionarios f ON f.id = l.funcionario_id
+"""
 
-# Versoes diferentes do Baserow nomeiam e formatam o filtro de data de outro
-# jeito, e a versao errada devolve zero linha sem acusar erro. Por isso o
-# dialeto e descoberto na primeira consulta e conferido contra a contagem total.
-DIALETOS_DATA = [
-    {
-        "nome": "moderno",
-        "depois": "date_is_on_or_after",
-        "antes": "date_is_on_or_before",
-        "valor": lambda data: f"UTC?{data}?exact_date",
-    },
-    {
-        "nome": "legado",
-        "depois": "date_after_or_equal",
-        "antes": "date_before_or_equal",
-        "valor": lambda data: data,
-    },
-]
+
+def _iso(valor):
+    return valor.isoformat() if valor else None
 
 
 class Repo:
     """Acesso as quatro tabelas. Uma instancia por processo."""
 
-    def __init__(self, config):
+    def __init__(self, config, db=None):
         self.config = config
-        self.client = BaserowClient(
-            config.BASEROW_URL,
-            email=config.BASEROW_EMAIL,
-            password=config.BASEROW_PASSWORD,
-            token=config.BASEROW_TOKEN,
-        )
-        self.table_ids = {}
-        self.database_id = config.BASEROW_DATABASE_ID
-        self.readonly_fields = {}
-        self.campo_aprovado_legado = None
-        self._dialeto = "nao testado"
-        self._bootstrap()
-
-    # ------------------------------------------------------------- bootstrap
-    def _bootstrap(self):
-        cache = load_cache()
-        ids = dict(cache.get("table_ids") or {})
-        for key, value in self.config.TABLE_IDS.items():
-            if value:
-                ids[key] = value
-        faltando = [k for k in S.TABLE_LABELS if not ids.get(k)]
-        if faltando:
-            descobertos, db_id = S.discover_tables(
-                self.client, self.database_id or cache.get("database_id")
-            )
-            ids.update({k: v for k, v in descobertos.items() if not ids.get(k)})
-            self.database_id = self.database_id or db_id
-        self.table_ids = {k: ids.get(k) for k in S.TABLE_LABELS}
-        ausentes = [S.TABLE_LABELS[k] for k, v in self.table_ids.items() if not v]
-        if ausentes:
-            raise BaserowError(
-                "Nao encontrei no Baserow a(s) tabela(s): " + ", ".join(ausentes)
-                + ". Informe os IDs no .env (TABLE_UNIDADES, TABLE_FUNCIONARIOS, "
-                "TABLE_USUARIOS, TABLE_LANCAMENTOS)."
-            )
-        save_cache({"table_ids": self.table_ids, "database_id": self.database_id})
-        self._load_field_metadata()
-
-    def _load_field_metadata(self):
-        for key, table_id in self.table_ids.items():
-            try:
-                campos = self.client.list_fields(table_id) or []
-            except BaserowError:
-                self.readonly_fields[key] = set()
-                continue
-            self.readonly_fields[key] = {
-                f["name"] for f in campos
-                if f.get("type") in READ_ONLY_TYPES or f.get("read_only")
-            }
-            if key == S.T_LANCAMENTOS:
-                self.campo_aprovado_legado = next(
-                    (
-                        f["name"] for f in campos
-                        if f.get("type") == "boolean"
-                        and S.normalize(f["name"]).startswith("aprova")
-                    ),
-                    None,
-                )
-
-    def _clean(self, table_key, payload):
-        """Remove campos somente-leitura antes de gravar."""
-        bloqueados = self.readonly_fields.get(table_key, set())
-        return {k: v for k, v in payload.items() if k not in bloqueados}
+        self.db = db or Database(config.DATABASE_URL)
+        self.db.cria_tabelas()
 
     # -------------------------------------------------------------- unidades
     def unidades(self):
-        rows = self.client.list_rows(
-            self.table_ids[S.T_UNIDADES], order_by=S.F["unidade_nome"]
-        )
-        return [{"id": r["id"], "nome": r.get(S.F["unidade_nome"]) or ""} for r in rows]
+        return self.db.todos("SELECT id, nome FROM unidades ORDER BY nome")
 
     def unidade(self, row_id):
-        r = self.client.get_row(self.table_ids[S.T_UNIDADES], row_id)
-        return {"id": r["id"], "nome": r.get(S.F["unidade_nome"]) or ""}
+        return self._existe(
+            self.db.um("SELECT id, nome FROM unidades WHERE id = %s", (row_id,))
+        )
 
     def unidade_criar(self, nome):
-        payload = self._clean(S.T_UNIDADES, {S.F["unidade_nome"]: nome})
-        return self.client.create_row(self.table_ids[S.T_UNIDADES], payload)
+        return self.db.um("INSERT INTO unidades (nome) VALUES (%s) RETURNING id", (nome,))
 
     def unidade_atualizar(self, row_id, nome):
-        payload = self._clean(S.T_UNIDADES, {S.F["unidade_nome"]: nome})
-        return self.client.update_row(self.table_ids[S.T_UNIDADES], row_id, payload)
+        self.db.executa("UPDATE unidades SET nome = %s WHERE id = %s", (nome, row_id))
 
     def unidade_excluir(self, row_id):
-        self.client.delete_row(self.table_ids[S.T_UNIDADES], row_id)
+        self.db.executa("DELETE FROM unidades WHERE id = %s", (row_id,))
 
     # ----------------------------------------------------------- funcionarios
-    def _map_funcionario(self, r):
-        bruto_unidade = r.get(S.F["func_unidade"])
-        nomes_unidade = link_values(bruto_unidade)
+    @staticmethod
+    def _map_funcionario(r):
         return {
             "id": r["id"],
-            "nome": r.get(S.F["func_nome"]) or "",
-            "prontuario": (r.get(S.F["func_prontuario"]) or "").strip(),
-            "telefone": r.get(S.F["func_telefone"]) or "",
-            "cargo": r.get(S.F["func_cargo"]) or "",
-            "unidade": ", ".join(nomes_unidade) or (
-                bruto_unidade if isinstance(bruto_unidade, str) else ""
-            ),
-            "unidade_ids": link_ids(bruto_unidade),
-            "ativo": r.get(S.F["func_ativo"]) is not False,
+            "nome": r["nome"],
+            "prontuario": r["prontuario"],
+            "telefone": r["telefone"],
+            "cargo": r["cargo"],
+            "unidade": r["unidade"],
+            "unidade_ids": [r["unidade_id"]] if r["unidade_id"] else [],
+            "ativo": r["ativo"],
         }
 
     def funcionarios(self, somente_ativos=False):
-        rows = self.client.list_rows(
-            self.table_ids[S.T_FUNCIONARIOS], order_by=S.F["func_nome"]
-        )
-        itens = [self._map_funcionario(r) for r in rows]
-        if somente_ativos:
-            itens = [f for f in itens if f["ativo"]]
-        return itens
+        filtro = " WHERE f.ativo" if somente_ativos else ""
+        rows = self.db.todos(SQL_FUNCIONARIO + filtro + " ORDER BY f.nome")
+        return [self._map_funcionario(r) for r in rows]
 
     def funcionario(self, row_id):
-        return self._map_funcionario(
-            self.client.get_row(self.table_ids[S.T_FUNCIONARIOS], row_id)
-        )
+        r = self._existe(self.db.um(SQL_FUNCIONARIO + " WHERE f.id = %s", (row_id,)))
+        return self._map_funcionario(r)
 
     def funcionario_por_prontuario(self, prontuario):
         alvo = (prontuario or "").strip()
         if not alvo:
             return None
-        for f in self.funcionarios():
-            if f["prontuario"] == alvo:
-                return f
-        return None
+        r = self.db.um(SQL_FUNCIONARIO + " WHERE f.prontuario = %s", (alvo,))
+        return self._map_funcionario(r) if r else None
 
-    def _payload_funcionario(self, dados):
-        payload = {
-            S.F["func_nome"]: dados.get("nome"),
-            S.F["func_prontuario"]: dados.get("prontuario"),
-            S.F["func_telefone"]: dados.get("telefone"),
-            S.F["func_cargo"]: dados.get("cargo"),
-            S.F["func_ativo"]: bool(dados.get("ativo")),
-        }
+    @staticmethod
+    def _valores_funcionario(dados):
         unidade_id = dados.get("unidade_id")
-        payload[S.F["func_unidade"]] = [int(unidade_id)] if unidade_id else []
-        return self._clean(S.T_FUNCIONARIOS, payload)
+        return (
+            dados.get("nome") or "",
+            (dados.get("prontuario") or "").strip(),
+            dados.get("telefone") or "",
+            dados.get("cargo") or "",
+            int(unidade_id) if unidade_id else None,
+            bool(dados.get("ativo")),
+        )
 
     def funcionario_criar(self, dados):
-        return self.client.create_row(
-            self.table_ids[S.T_FUNCIONARIOS], self._payload_funcionario(dados)
+        return self.db.um(
+            "INSERT INTO funcionarios (nome, prontuario, telefone, cargo, unidade_id, ativo)"
+            " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            self._valores_funcionario(dados),
         )
 
     def funcionario_atualizar(self, row_id, dados):
-        return self.client.update_row(
-            self.table_ids[S.T_FUNCIONARIOS], row_id, self._payload_funcionario(dados)
+        self.db.executa(
+            "UPDATE funcionarios SET nome = %s, prontuario = %s, telefone = %s,"
+            " cargo = %s, unidade_id = %s, ativo = %s WHERE id = %s",
+            self._valores_funcionario(dados) + (row_id,),
         )
 
     def funcionario_excluir(self, row_id):
-        self.client.delete_row(self.table_ids[S.T_FUNCIONARIOS], row_id)
+        self.db.executa("DELETE FROM funcionarios WHERE id = %s", (row_id,))
 
     # --------------------------------------------------------------- usuarios
-    def _map_usuario(self, r):
+    @staticmethod
+    def _map_usuario(r):
         return {
             "id": r["id"],
-            "nome": r.get(S.F["user_nome"]) or "",
-            "login": (r.get(S.F["user_login"]) or "").strip(),
-            "hash": r.get(S.F["user_hash"]) or "",
-            "perfil": select_value(r.get(S.F["user_perfil"])) or "",
-            "ativo": r.get(S.F["user_ativo"]) is not False,
+            "nome": r["nome"],
+            "login": r["login"],
+            "hash": r["senha_hash"],
+            "perfil": r["perfil"],
+            "ativo": r["ativo"],
         }
 
     def usuarios(self):
-        rows = self.client.list_rows(
-            self.table_ids[S.T_USUARIOS], order_by=S.F["user_nome"]
-        )
+        rows = self.db.todos("SELECT * FROM usuarios ORDER BY nome")
         return [self._map_usuario(r) for r in rows]
 
     def usuario(self, row_id):
-        return self._map_usuario(self.client.get_row(self.table_ids[S.T_USUARIOS], row_id))
+        r = self._existe(self.db.um("SELECT * FROM usuarios WHERE id = %s", (row_id,)))
+        return self._map_usuario(r)
 
     def usuario_por_login(self, login):
         alvo = (login or "").strip().lower()
         if not alvo:
             return None
-        for u in self.usuarios():
-            if u["login"].lower() == alvo:
-                return u
-        return None
+        r = self.db.um("SELECT * FROM usuarios WHERE lower(login) = %s", (alvo,))
+        return self._map_usuario(r) if r else None
 
     def usuario_criar(self, dados):
-        payload = self._clean(S.T_USUARIOS, {
-            S.F["user_nome"]: dados.get("nome"),
-            S.F["user_login"]: dados.get("login"),
-            S.F["user_hash"]: dados.get("hash"),
-            S.F["user_perfil"]: dados.get("perfil"),
-            S.F["user_ativo"]: bool(dados.get("ativo")),
-        })
-        return self.client.create_row(self.table_ids[S.T_USUARIOS], payload)
-
-    def usuario_atualizar(self, row_id, dados):
-        payload = {
-            S.F["user_nome"]: dados.get("nome"),
-            S.F["user_login"]: dados.get("login"),
-            S.F["user_perfil"]: dados.get("perfil"),
-            S.F["user_ativo"]: bool(dados.get("ativo")),
-        }
-        if dados.get("hash"):
-            payload[S.F["user_hash"]] = dados["hash"]
-        return self.client.update_row(
-            self.table_ids[S.T_USUARIOS], row_id, self._clean(S.T_USUARIOS, payload)
+        return self.db.um(
+            "INSERT INTO usuarios (nome, login, senha_hash, perfil, ativo)"
+            " VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (
+                dados.get("nome"), (dados.get("login") or "").strip(),
+                dados.get("hash") or "", dados.get("perfil"), bool(dados.get("ativo")),
+            ),
         )
 
+    def usuario_atualizar(self, row_id, dados):
+        campos = {
+            "nome": dados.get("nome"),
+            "login": (dados.get("login") or "").strip(),
+            "perfil": dados.get("perfil"),
+            "ativo": bool(dados.get("ativo")),
+        }
+        if dados.get("hash"):
+            campos["senha_hash"] = dados["hash"]
+        self._atualiza("usuarios", row_id, campos)
+
     def usuario_excluir(self, row_id):
-        self.client.delete_row(self.table_ids[S.T_USUARIOS], row_id)
+        self.db.executa("DELETE FROM usuarios WHERE id = %s", (row_id,))
 
     # ------------------------------------------------------------ lancamentos
     def _map_lancamento(self, r):
-        entrada = parse_duration(r.get(S.F["lanc_entrada"]))
-        saida = parse_duration(r.get(S.F["lanc_saida"]))
-        hc_status = select_value(r.get(S.F["lanc_hc_status"])) or "Nao solicitada"
+        entrada, saida = r["entrada_seg"], r["saida_seg"]
+        hc_status = r["hc_status"]
         permanencia, almoco, trabalhadas, excedidas = calcula_jornada(
             entrada, saida, self.config.JORNADA_PADRAO_SEGUNDOS,
             self.config.ALMOCO_SEGUNDOS, hc_autorizada=hc_status == "Autorizada",
@@ -263,12 +176,12 @@ class Repo:
             entrada, saida, self.config.JORNADA_PADRAO_SEGUNDOS,
             self.config.ALMOCO_SEGUNDOS, hc_autorizada=True,
         )
-        data_iso = parse_date(r.get(CAMPO_DATA))
+        data_iso = _iso(r["data"])
         return {
             "id": r["id"],
-            "prontuario": (r.get(S.F["lanc_prontuario"]) or "").strip(),
-            "funcionario": ", ".join(link_values(r.get(S.F["lanc_funcionario"]))),
-            "funcionario_ids": link_ids(r.get(S.F["lanc_funcionario"])),
+            "prontuario": r["prontuario"],
+            "funcionario": r["funcionario"],
+            "funcionario_ids": [r["funcionario_id"]] if r["funcionario_id"] else [],
             "data": data_iso,
             "data_br": format_date_br(data_iso),
             "entrada_seg": entrada,
@@ -278,106 +191,88 @@ class Repo:
             "trabalhadas_seg": trabalhadas,
             "excedidas_seg": excedidas,
             "excedidas_com_hc_seg": excedidas_com_hc,
-            "status": select_value(r.get(S.F["lanc_status"])) or "Pendente",
-            "hc_solicitada": bool(r.get(S.F["lanc_hc_solicitada"])),
+            "status": r["status"],
+            "hc_solicitada": r["hc_solicitada"],
             "hc_status": hc_status,
-            "obs_rh": r.get(S.F["lanc_obs_rh"]) or "",
-            "parecer": r.get(S.F["lanc_parecer"]) or "",
-            "unidade": r.get(S.F["lanc_unidade"]) or "",
-            "lancado_por": r.get(S.F["lanc_lancado_por"]) or "",
+            "obs_rh": r["obs_rh"],
+            "parecer": r["parecer_gestor"],
+            "unidade": r["unidade"],
+            "lancado_por": r["lancado_por"],
             "lancado_em": format_datetime_br(
-                r.get(S.F["lanc_lancado_em"]), self.config.TIMEZONE_OFFSET
+                _iso(r["lancado_em"]), self.config.TIMEZONE_OFFSET
             ),
-            "decidido_por": r.get(S.F["lanc_decidido_por"]) or "",
+            "decidido_por": r["decidido_por"],
             "decidido_em": format_datetime_br(
-                r.get(S.F["lanc_decidido_em"]), self.config.TIMEZONE_OFFSET
+                _iso(r["decidido_em"]), self.config.TIMEZONE_OFFSET
             ),
         }
 
-    def _dialeto_data(self):
-        """Descobre qual dialeto de filtro de data esta instancia entende.
-
-        Cada candidato e conferido pedindo tudo ate uma data distante: se a
-        contagem bater com o total da tabela, o filtro funciona de verdade.
-        Nenhum servindo, o filtro passa a ser feito aqui mesmo.
-        """
-        if self._dialeto != "nao testado":
-            return self._dialeto
-
-        table_id = self.table_ids[S.T_LANCAMENTOS]
-        self._dialeto = None
-        try:
-            total = self.client.count_rows(table_id)
-            for dialeto in DIALETOS_DATA:
-                chave = "filter__" + CAMPO_DATA + "__" + dialeto["antes"]
-                contagem = self.client.count_rows(
-                    table_id, {chave: dialeto["valor"]("2999-12-31")}
-                )
-                if contagem == total:
-                    self._dialeto = dialeto
-                    break
-        except BaserowError:
-            self._dialeto = None
-        return self._dialeto
-
     def lancamentos(self, inicio=None, fim=None, prontuario=None, status=None,
                     unidade=None, hc_status=None):
-        table_id = self.table_ids[S.T_LANCAMENTOS]
-        dialeto = self._dialeto_data() if (inicio or fim) else None
-        filtros = {}
-        if dialeto and inicio:
-            filtros["filter__" + CAMPO_DATA + "__" + dialeto["depois"]] = \
-                dialeto["valor"](inicio)
-        if dialeto and fim:
-            filtros["filter__" + CAMPO_DATA + "__" + dialeto["antes"]] = \
-                dialeto["valor"](fim)
-        try:
-            rows = self.client.list_rows(
-                table_id, filters=filtros, order_by="-" + CAMPO_DATA
-            )
-        except BaserowError:
-            # Filtro recusado: traz tudo e deixa o recorte para o passo abaixo.
-            self._dialeto = None
-            rows = self.client.list_rows(table_id, order_by="-" + CAMPO_DATA)
-
-        itens = [self._map_lancamento(r) for r in rows]
-        if inicio:
-            itens = [i for i in itens if i["data"] and i["data"] >= inicio]
-        if fim:
-            itens = [i for i in itens if i["data"] and i["data"] <= fim]
-        if prontuario:
-            alvo = prontuario.strip()
-            itens = [i for i in itens if i["prontuario"] == alvo]
-        if status:
-            itens = [i for i in itens if i["status"] == status]
-        if hc_status:
-            itens = [i for i in itens if i["hc_status"] == hc_status]
-        if unidade:
-            itens = [i for i in itens if i["unidade"] == unidade]
-        itens.sort(key=lambda i: (i["data"] or "", i["funcionario"]), reverse=True)
-        return itens
+        condicoes, params = [], []
+        for coluna, operador, valor in (
+            ("l.data", ">=", inicio),
+            ("l.data", "<=", fim),
+            ("l.prontuario", "=", (prontuario or "").strip()),
+            ("l.status", "=", status),
+            ("l.hc_status", "=", hc_status),
+            ("l.unidade", "=", unidade),
+        ):
+            if valor:
+                condicoes.append(f"{coluna} {operador} %s")
+                params.append(valor)
+        where = (" WHERE " + " AND ".join(condicoes)) if condicoes else ""
+        rows = self.db.todos(
+            SQL_LANCAMENTO + where + " ORDER BY l.data DESC, funcionario DESC", params
+        )
+        return [self._map_lancamento(r) for r in rows]
 
     def lancamento(self, row_id):
-        return self._map_lancamento(
-            self.client.get_row(self.table_ids[S.T_LANCAMENTOS], row_id)
-        )
+        r = self._existe(self.db.um(SQL_LANCAMENTO + " WHERE l.id = %s", (row_id,)))
+        return self._map_lancamento(r)
 
     def lancamento_criar(self, payload):
-        return self.client.create_row(
-            self.table_ids[S.T_LANCAMENTOS], self._clean(S.T_LANCAMENTOS, payload)
+        campos = self._colunas_lancamento(payload)
+        nomes = ", ".join(campos)
+        marcas = ", ".join(["%s"] * len(campos))
+        return self.db.um(
+            f"INSERT INTO lancamentos ({nomes}) VALUES ({marcas}) RETURNING id",
+            list(campos.values()),
         )
 
     def lancamento_atualizar(self, row_id, payload):
-        return self.client.update_row(
-            self.table_ids[S.T_LANCAMENTOS], row_id, self._clean(S.T_LANCAMENTOS, payload)
-        )
+        self._atualiza("lancamentos", row_id, self._colunas_lancamento(payload))
 
     def lancamento_excluir(self, row_id):
-        self.client.delete_row(self.table_ids[S.T_LANCAMENTOS], row_id)
+        self.db.executa("DELETE FROM lancamentos WHERE id = %s", (row_id,))
 
     def existe_lancamento(self, prontuario, data_iso, ignorar_id=None):
-        iguais = self.lancamentos(inicio=data_iso, fim=data_iso, prontuario=prontuario)
-        for item in iguais:
-            if item["id"] != ignorar_id:
-                return item
-        return None
+        r = self.db.um(
+            SQL_LANCAMENTO + " WHERE l.prontuario = %s AND l.data = %s"
+            " AND l.id IS DISTINCT FROM %s LIMIT 1",
+            ((prontuario or "").strip(), data_iso, ignorar_id),
+        )
+        return self._map_lancamento(r) if r else None
+
+    # ------------------------------------------------------------- auxiliares
+    @staticmethod
+    def _colunas_lancamento(payload):
+        desconhecidas = set(payload) - S.COLUNAS_LANCAMENTO
+        if desconhecidas:
+            raise DBError("Colunas desconhecidas: " + ", ".join(sorted(desconhecidas)))
+        return dict(payload)
+
+    def _atualiza(self, tabela, row_id, campos):
+        """UPDATE com nomes de coluna vindos do proprio codigo, nunca do usuario."""
+        if not campos:
+            return
+        sets = ", ".join(f"{coluna} = %s" for coluna in campos)
+        self.db.executa(
+            f"UPDATE {tabela} SET {sets} WHERE id = %s", list(campos.values()) + [row_id]
+        )
+
+    @staticmethod
+    def _existe(row):
+        if row is None:
+            abort(404)
+        return row

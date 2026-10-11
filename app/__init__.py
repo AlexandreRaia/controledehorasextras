@@ -10,7 +10,7 @@ from .auth import (
     perfil_atual,
     usuario_atual,
 )
-from .baserow import BaserowError
+from .db import DBError
 from .config import Config
 from .repo import Repo
 from .utils import format_date_br, format_datetime_br, format_duration, horas_decimais
@@ -20,13 +20,13 @@ _repo_erro = None
 
 
 def get_repo():
-    """Cria o acesso ao Baserow na primeira chamada e reaproveita depois."""
+    """Cria o acesso ao banco na primeira chamada e reaproveita depois."""
     global _repo, _repo_erro
     if _repo is None:
         try:
             _repo = Repo(Config)
             _repo_erro = None
-        except BaserowError as exc:
+        except DBError as exc:
             _repo_erro = str(exc)
             raise
     return _repo
@@ -90,14 +90,14 @@ def create_app(config_object=Config):
             mensagem="O endereco acessado nao existe.",
         ), 404
 
-    @app.errorhandler(BaserowError)
-    def erro_baserow(erro):
+    @app.errorhandler(DBError)
+    def erro_banco(erro):
+        app.logger.error("Erro no banco: %s", erro)
         return render_template(
             "erro.html",
-            titulo="Falha na conexao com o Baserow",
-            mensagem=str(erro),
-            detalhe="Confira BASEROW_URL, BASEROW_EMAIL, BASEROW_PASSWORD e os IDs "
-                    "das tabelas no arquivo .env.",
+            titulo="Falha no banco de dados",
+            mensagem="Nao foi possivel concluir a operacao no banco de dados.",
+            detalhe="Confira a DATABASE_URL no arquivo .env e se o PostgreSQL esta no ar.",
         ), 502
 
     return app

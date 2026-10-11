@@ -1,12 +1,21 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{# Subtotal de excedentes separado pela decisao do gestor, com o icone de cada uma. #}
+{% macro resumo(aprovadas, pendentes, rejeitadas, hc) %}
+  <span class="resumo">
+    <span class="r-ok" title="Excedentes aprovados">{{ m.icone('ok') }}{{ aprovadas | dur }}</span>
+    <span class="r-pendente" title="Excedentes pendentes">{{ m.icone('relogio') }}{{ pendentes | dur }}</span>
+    <span class="r-nao" title="Excedentes rejeitados">{{ m.icone('nao') }}{{ rejeitadas | dur }}</span>
+    {% if hc %}<span class="r-hc" title="Horas corridas autorizadas">HC {{ hc }}</span>{% endif %}
+  </span>
+{% endmacro %}
 {% block titulo %}Relatório consolidado{% endblock %}
 {% block conteudo %}
 
 <h1>Relatório consolidado</h1>
 <p class="sub">
-  Horas por funcionário no período, separadas pela decisão do gestor.
-  A coluna Almoço mostra o que foi descontado por não ser hora excedente.
+  Dia a dia de cada funcionário no período, com o subtotal separado pela decisão
+  do gestor. A coluna Almoço mostra o que foi descontado por não ser hora excedente.
 </p>
 
 <form class="cartao filtros" method="get">
@@ -42,80 +51,65 @@
   <table>
     <thead>
       <tr>
-        <th>Prontuário</th><th>Funcionário</th><th>Unidade</th>
-        <th class="num">Dias</th><th class="num">Permanência</th>
-        <th class="num">Almoço</th><th class="num">Trabalhadas</th>
-        <th class="num">Excedentes</th><th class="num">Aprovadas</th>
-        <th class="num">Pendentes</th><th class="num">Rejeitadas</th>
-        <th class="num">HC autorizadas</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for l in linhas %}
-      <tr>
-        <td>{{ l.prontuario }}</td>
-        <td>{{ l.funcionario }}</td>
-        <td>{{ l.unidade }}</td>
-        <td class="num">{{ l.dias }}</td>
-        <td class="num">{{ l.permanencia | dur }}</td>
-        <td class="num">{{ l.almoco | dur }}</td>
-        <td class="num">{{ l.trabalhadas | dur }}</td>
-        <td class="num">{{ l.excedidas | dur }}</td>
-        <td class="num">{{ l.aprovadas | dur }}</td>
-        <td class="num">{{ l.pendentes | dur }}</td>
-        <td class="num">{{ l.rejeitadas | dur }}</td>
-        <td class="num">{{ l.hc_autorizadas }}</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="12" class="vazio">Sem dados para o filtro escolhido.</td></tr>
-      {% endfor %}
-    </tbody>
-    {% if linhas %}
-    <tfoot>
-      <tr>
-        <td colspan="4">Totais</td>
-        <td class="num">{{ linhas | sum(attribute='permanencia') | dur }}</td>
-        <td class="num">{{ linhas | sum(attribute='almoco') | dur }}</td>
-        <td class="num">{{ linhas | sum(attribute='trabalhadas') | dur }}</td>
-        <td class="num">{{ linhas | sum(attribute='excedidas') | dur }}</td>
-        <td class="num">{{ linhas | sum(attribute='aprovadas') | dur }}</td>
-        <td class="num">{{ linhas | sum(attribute='pendentes') | dur }}</td>
-        <td class="num">{{ linhas | sum(attribute='rejeitadas') | dur }}</td>
-        <td class="num">{{ linhas | sum(attribute='hc_autorizadas') }}</td>
-      </tr>
-    </tfoot>
-    {% endif %}
-  </table>
-</div>
-
-<h2>Detalhe dia a dia</h2>
-<div class="cartao tabela-rolagem">
-  <table>
-    <thead>
-      <tr>
-        <th>Data</th><th>Funcionário</th><th class="num">Entrada</th><th class="num">Saída</th>
+        <th>Data</th>
+        <th class="num">Entrada</th><th class="num">Saída</th>
         <th class="num">Permanência</th><th class="num">Almoço</th>
-        <th class="num">Excedentes</th><th>Status</th><th>HC</th><th>Parecer do gestor</th>
+        <th class="num">Trabalhadas</th><th class="num">Excedentes</th>
+        <th>Status</th><th>HC</th><th>Parecer do gestor</th>
       </tr>
     </thead>
+    {% for g in linhas %}
     <tbody>
-      {% for i in itens %}
+      <tr class="grupo">
+        <td colspan="10">
+          <strong>{{ g.funcionario }}</strong>
+          <span class="dica">prontuário {{ g.prontuario }}{% if g.unidade %} · {{ g.unidade }}{% endif %}</span>
+        </td>
+      </tr>
+      {% for i in g.itens %}
       <tr>
         <td>{{ i.data_br }}</td>
-        <td>{{ i.funcionario or i.prontuario }}</td>
         <td class="num">{{ i.entrada_seg | dur }}</td>
         <td class="num">{{ i.saida_seg | dur }}</td>
         <td class="num">{{ i.permanencia_seg | dur }}</td>
         <td class="num">{{ i.almoco_seg | dur }}</td>
+        <td class="num">{{ i.trabalhadas_seg | dur }}</td>
         <td class="num">{{ i.excedidas_seg | dur }}</td>
         <td>{{ m.etiqueta_status(i.status) }}</td>
         <td>{{ m.etiqueta_hc(i) }}</td>
         <td>{{ i.parecer }}</td>
       </tr>
-      {% else %}
-      <tr><td colspan="10" class="vazio">Sem lançamentos no período.</td></tr>
       {% endfor %}
+      <tr class="subtotal">
+        <td>Subtotal · {{ g.dias }} dia{{ 's' if g.dias != 1 }}</td>
+        <td class="num"></td><td class="num"></td>
+        <td class="num">{{ g.permanencia | dur }}</td>
+        <td class="num">{{ g.almoco | dur }}</td>
+        <td class="num">{{ g.trabalhadas | dur }}</td>
+        <td class="num">{{ g.excedidas | dur }}</td>
+        <td colspan="3">{{ resumo(g.aprovadas, g.pendentes, g.rejeitadas, g.hc_autorizadas) }}</td>
+      </tr>
     </tbody>
+    {% else %}
+    <tbody>
+      <tr><td colspan="10" class="vazio">Sem dados para o filtro escolhido.</td></tr>
+    </tbody>
+    {% endfor %}
+    {% if linhas %}
+    <tfoot>
+      <tr>
+        <td colspan="3">Total geral · {{ linhas | length }} funcionário(s)</td>
+        <td class="num">{{ linhas | sum(attribute='permanencia') | dur }}</td>
+        <td class="num">{{ linhas | sum(attribute='almoco') | dur }}</td>
+        <td class="num">{{ linhas | sum(attribute='trabalhadas') | dur }}</td>
+        <td class="num">{{ linhas | sum(attribute='excedidas') | dur }}</td>
+        <td colspan="3">{{ resumo(linhas | sum(attribute='aprovadas'),
+                                  linhas | sum(attribute='pendentes'),
+                                  linhas | sum(attribute='rejeitadas'),
+                                  linhas | sum(attribute='hc_autorizadas')) }}</td>
+      </tr>
+    </tfoot>
+    {% endif %}
   </table>
 </div>
 {% endblock %}

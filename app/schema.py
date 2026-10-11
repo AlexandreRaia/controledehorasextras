@@ -1,107 +1,88 @@
-"""Nomes de tabelas/campos no Baserow e criacao automatica do que falta."""
+"""Tabelas do PostgreSQL e nomes de colunas usados pelo app."""
 import unicodedata
 
-# --------------------------------------------------------------- nomes fixos
-T_UNIDADES = "unidades"
-T_FUNCIONARIOS = "funcionarios"
-T_USUARIOS = "usuarios"
-T_LANCAMENTOS = "lancamentos"
-
-TABLE_LABELS = {
-    T_UNIDADES: "Unidades",
-    T_FUNCIONARIOS: "Funcionarios",
-    T_USUARIOS: "Usuarios",
-    T_LANCAMENTOS: "Lancamentos",
-}
-
-# Campos criados pelo app quando ainda nao existem na tabela.
 PERFIS = ["Administrador", "RH", "Gestor", "Operacoes"]
 STATUS_APROVACAO = ["Pendente", "Aprovado", "Rejeitado"]
 STATUS_HC = ["Nao solicitada", "Pendente", "Autorizada", "Negada"]
 
-REQUIRED_FIELDS = {
-    T_UNIDADES: [],
-    T_FUNCIONARIOS: [
-        {"name": "Ativo", "type": "boolean"},
-    ],
-    T_USUARIOS: [
-        {"name": "Login", "type": "text"},
-        {"name": "SenhaHash", "type": "long_text"},
-        {
-            "name": "Perfil",
-            "type": "single_select",
-            "select_options": [
-                {"value": "Administrador", "color": "dark-blue"},
-                {"value": "RH", "color": "dark-green"},
-                {"value": "Gestor", "color": "dark-orange"},
-                {"value": "Operacoes", "color": "dark-gray"},
-            ],
-        },
-    ],
-    T_LANCAMENTOS: [
-        {
-            "name": "Status",
-            "type": "single_select",
-            "select_options": [
-                {"value": "Pendente", "color": "yellow"},
-                {"value": "Aprovado", "color": "green"},
-                {"value": "Rejeitado", "color": "red"},
-            ],
-        },
-        {
-            "name": "HC Status",
-            "type": "single_select",
-            "select_options": [
-                {"value": "Nao solicitada", "color": "light-gray"},
-                {"value": "Pendente", "color": "yellow"},
-                {"value": "Autorizada", "color": "green"},
-                {"value": "Negada", "color": "red"},
-            ],
-        },
-        {"name": "Observacao RH", "type": "long_text"},
-        {"name": "Parecer Gestor", "type": "long_text"},
-        {"name": "Unidade", "type": "text"},
-        {"name": "Lancado Por", "type": "text"},
-        {"name": "Lancado Em", "type": "date", "date_format": "EU",
-         "date_include_time": True, "date_time_format": "24"},
-        {"name": "Decidido Por", "type": "text"},
-        {"name": "Decidido Em", "type": "date", "date_format": "EU",
-         "date_include_time": True, "date_time_format": "24"},
-    ],
-}
 
-# Campos que ja existem no Baserow e sao usados pelo app.
+def _lista(valores):
+    return ", ".join("'" + v + "'" for v in valores)
+
+
+# Idempotente: roda na partida do app e no tools.setup_db sem apagar nada.
+DDL = f"""
+CREATE TABLE IF NOT EXISTS unidades (
+    id    SERIAL PRIMARY KEY,
+    nome  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS funcionarios (
+    id          SERIAL PRIMARY KEY,
+    nome        TEXT NOT NULL,
+    prontuario  TEXT NOT NULL UNIQUE,
+    telefone    TEXT NOT NULL DEFAULT '',
+    cargo       TEXT NOT NULL DEFAULT '',
+    unidade_id  INTEGER REFERENCES unidades(id) ON DELETE SET NULL,
+    ativo       BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE IF NOT EXISTS usuarios (
+    id          SERIAL PRIMARY KEY,
+    nome        TEXT NOT NULL,
+    login       TEXT NOT NULL,
+    senha_hash  TEXT NOT NULL DEFAULT '',
+    perfil      TEXT NOT NULL CHECK (perfil IN ({_lista(PERFIS)})),
+    ativo       BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS usuarios_login_unico ON usuarios (lower(login));
+
+CREATE TABLE IF NOT EXISTS lancamentos (
+    id              SERIAL PRIMARY KEY,
+    funcionario_id  INTEGER REFERENCES funcionarios(id) ON DELETE SET NULL,
+    prontuario      TEXT NOT NULL,
+    data            DATE NOT NULL,
+    entrada_seg     INTEGER,
+    saida_seg       INTEGER,
+    excedidas_seg   INTEGER,
+    status          TEXT NOT NULL DEFAULT 'Pendente'
+                    CHECK (status IN ({_lista(STATUS_APROVACAO)})),
+    hc_solicitada   BOOLEAN NOT NULL DEFAULT FALSE,
+    hc_status       TEXT NOT NULL DEFAULT 'Nao solicitada'
+                    CHECK (hc_status IN ({_lista(STATUS_HC)})),
+    obs_rh          TEXT NOT NULL DEFAULT '',
+    parecer_gestor  TEXT NOT NULL DEFAULT '',
+    unidade         TEXT NOT NULL DEFAULT '',
+    lancado_por     TEXT NOT NULL DEFAULT '',
+    lancado_em      TIMESTAMPTZ,
+    decidido_por    TEXT NOT NULL DEFAULT '',
+    decidido_em     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS lancamentos_data ON lancamentos (data);
+CREATE INDEX IF NOT EXISTS lancamentos_prontuario_data ON lancamentos (prontuario, data);
+"""
+
+# Colunas de lancamentos que as views gravam. As views montam o payload com
+# estas chaves e o repositorio aceita apenas colunas desta lista.
 F = {
-    "unidade_nome": "Name",
-    "func_nome": "Name",
-    "func_prontuario": "Prontuario",
-    "func_telefone": "Phone",
-    "func_cargo": "Job role",
-    "func_unidade": "Unidade",
-    "func_ativo": "Ativo",
-    "user_nome": "Name",
-    "user_login": "Login",
-    "user_hash": "SenhaHash",
-    "user_perfil": "Perfil",
-    "user_ativo": "Active",
-    "lanc_prontuario": "Prontuario",
-    "lanc_funcionario": "Nome",
-    "lanc_data": "Data",
-    "lanc_entrada": "Entrada",
-    "lanc_saida": "Saida",
-    "lanc_trabalhadas": "Horas Trabalhadas",
-    "lanc_excedidas": "Horas Excedidas",
-    "lanc_status": "Status",
-    "lanc_hc_solicitada": "HC",
-    "lanc_hc_status": "HC Status",
-    "lanc_obs_rh": "Observacao RH",
-    "lanc_parecer": "Parecer Gestor",
-    "lanc_unidade": "Unidade",
-    "lanc_lancado_por": "Lancado Por",
-    "lanc_lancado_em": "Lancado Em",
-    "lanc_decidido_por": "Decidido Por",
-    "lanc_decidido_em": "Decidido Em",
+    "lanc_prontuario": "prontuario",
+    "lanc_funcionario": "funcionario_id",
+    "lanc_data": "data",
+    "lanc_entrada": "entrada_seg",
+    "lanc_saida": "saida_seg",
+    "lanc_excedidas": "excedidas_seg",
+    "lanc_status": "status",
+    "lanc_hc_solicitada": "hc_solicitada",
+    "lanc_hc_status": "hc_status",
+    "lanc_obs_rh": "obs_rh",
+    "lanc_parecer": "parecer_gestor",
+    "lanc_unidade": "unidade",
+    "lanc_lancado_por": "lancado_por",
+    "lanc_lancado_em": "lancado_em",
+    "lanc_decidido_por": "decidido_por",
+    "lanc_decidido_em": "decidido_em",
 }
+COLUNAS_LANCAMENTO = frozenset(F.values())
 
 
 def normalize(text):
@@ -111,48 +92,3 @@ def normalize(text):
     txt = unicodedata.normalize("NFKD", str(text))
     txt = "".join(ch for ch in txt if not unicodedata.combining(ch))
     return txt.strip().lower()
-
-
-TABLE_ALIASES = {
-    T_UNIDADES: {"unidades", "unidade", "units", "unit"},
-    T_FUNCIONARIOS: {"funcionarios", "funcionario", "colaboradores", "motoristas"},
-    T_USUARIOS: {"usuarios", "usuario", "users"},
-    T_LANCAMENTOS: {"lancamentos", "lancamento", "apontamentos", "horas"},
-}
-
-
-def discover_tables(client, database_id=None):
-    """Descobre os ids das quatro tabelas pelo nome. Retorna (ids, database_id)."""
-    databases = []
-    if database_id:
-        databases = [database_id]
-    else:
-        for app_ in client.list_applications() or []:
-            if app_.get("type") == "database":
-                databases.append(app_["id"])
-
-    found = {}
-    used_db = None
-    for db_id in databases:
-        tables = client.list_tables(db_id) or []
-        hits = {}
-        for table in tables:
-            key_name = normalize(table.get("name"))
-            for key, aliases in TABLE_ALIASES.items():
-                if key_name in aliases:
-                    hits[key] = table["id"]
-        if len(hits) > len(found):
-            found, used_db = hits, db_id
-    return found, used_db
-
-
-def ensure_fields(client, table_id, wanted):
-    """Cria os campos que faltam. Devolve a lista de nomes criados."""
-    existing = {normalize(f["name"]): f for f in client.list_fields(table_id) or []}
-    created = []
-    for spec in wanted:
-        if normalize(spec["name"]) in existing:
-            continue
-        client.create_field(table_id, dict(spec))
-        created.append(spec["name"])
-    return created

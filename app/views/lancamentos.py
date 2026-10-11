@@ -64,7 +64,7 @@ def _monta_payload(form, funcionario):
     payload = {
         S.F["lanc_data"]: data_iso,
         S.F["lanc_prontuario"]: funcionario["prontuario"],
-        S.F["lanc_funcionario"]: [funcionario["id"]],
+        S.F["lanc_funcionario"]: funcionario["id"],
         S.F["lanc_entrada"]: entrada,
         S.F["lanc_saida"]: saida,
         S.F["lanc_excedidas"]: excedidas,
@@ -270,7 +270,7 @@ def dia():
             payload = {
                 S.F["lanc_data"]: data_iso,
                 S.F["lanc_prontuario"]: funcionario["prontuario"],
-                S.F["lanc_funcionario"]: [funcionario["id"]],
+                S.F["lanc_funcionario"]: funcionario["id"],
                 S.F["lanc_entrada"]: entrada,
                 S.F["lanc_saida"]: saida,
                 S.F["lanc_excedidas"]: excedidas,

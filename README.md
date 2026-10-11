@@ -1,8 +1,8 @@
 # Controle de Horas Extras
 
 Aplicação web em Flask para o controle diário de horas extras de motoristas,
-usando o Baserow como banco de dados. As quatro tabelas existentes continuam
-sendo a fonte da verdade: Unidades, Funcionarios, Usuarios e Lançamentos.
+usando PostgreSQL como banco de dados, com quatro tabelas: unidades,
+funcionarios, usuarios e lancamentos.
 
 ## Quem pode fazer o quê
 
@@ -46,7 +46,7 @@ A jornada e o almoço são configuráveis em `JORNADA_PADRAO_HORAS` e
 `ALMOCO_HORAS`, iguais a 8 e 1 por padrão.
 
 Como o excedente depende da hora corrida, a decisão do gestor regrava a coluna
-`Horas Excedidas`. Essa é a única hora que ele move, e apenas como consequência
+`excedidas_seg`. Essa é a única hora que ele move, e apenas como consequência
 da própria decisão. Entrada, saída, data e funcionário continuam intocados.
 
 ## Instalação
@@ -61,60 +61,36 @@ copy .env.example .env
 Preencha o `.env`:
 
 ```
-BASEROW_URL=https://api.baserow.io
-BASEROW_EMAIL=seu-email-do-baserow
-BASEROW_PASSWORD=sua-senha-do-baserow
+DATABASE_URL=postgresql://controlehoras:SENHA@HOST:5432/controlehoras
 SECRET_KEY=uma-chave-aleatoria-longa
 ```
 
-O e-mail e a senha do Baserow são necessários porque o app lê o esquema das
-tabelas e cria os campos que faltam. Se preferir, gere também um token de banco
-de dados em Settings e coloque em `BASEROW_TOKEN`: ele passa a ser usado para
-ler e gravar linhas.
+O banco `controlehoras` pertence ao usuário `controlehoras`, que só tem acesso
+a ele. O superusuário `postgres` fica fora do app.
 
-## Conferir a conexão
+## Preparar o banco
 
 ```bash
-python -m tools.diagnostico
+python -m tools.setup_db
 ```
 
-Mostra se a instância responde, se o token tem permissão nas tabelas, se o
-e-mail e a senha autenticam, quais tabelas foram encontradas, quais campos já
-existem e quais ainda faltam. Também imprime os IDs prontos para colar no
-`.env`. Rode isso antes de qualquer outra coisa.
+Cria as tabelas que faltam e os quatro usuários iniciais, imprimindo as senhas
+geradas uma única vez. Rodar de novo não apaga nada: tabelas e usuários
+existentes são preservados. Use `--senhas` para gerar senhas novas para todos
+ou `--so-tabelas` para mexer apenas no esquema.
 
-O token de banco de dados precisa das quatro permissões marcadas. No Baserow,
-abra a foto do perfil, Settings, Database tokens, clique no token e habilite
-Create, Read, Update e Delete para o banco de dados.
+O app também cria as tabelas sozinho na primeira conexão, então em uma
+instalação nova basta rodar o script para ter os usuários de acesso.
 
-## Preparar o Baserow
+| Tabela | Conteúdo |
+|---|---|
+| unidades | nome |
+| funcionarios | nome, prontuário (único), telefone, cargo, unidade, ativo |
+| usuarios | nome, login (único, sem diferenciar maiúsculas), hash da senha, perfil, ativo |
+| lancamentos | funcionário, prontuário, data, entrada e saída em segundos, excedente, situação, hora corrida, observação do RH, parecer do gestor e a trilha de quem lançou e decidiu |
 
-```bash
-python -m tools.setup_baserow --senhas
-```
-
-O script localiza as tabelas pelo nome, cria os campos que o app precisa e
-cadastra os quatro usuários iniciais, imprimindo as senhas geradas uma única
-vez. Rode sem `--senhas` para preservar as senhas já definidas.
-
-Campos criados automaticamente:
-
-- **Funcionarios**: Ativo
-- **Usuarios**: Login, SenhaHash, Perfil
-- **Lançamentos**: Status, HC Status, Observacao RH, Parecer Gestor, Unidade,
-  Lancado Por, Lancado Em, Decidido Por, Decidido Em
-
-Colunas que já existiam são reaproveitadas, não duplicadas: `Data`, `HC` como
-pedido de hora corrida, `Aprovacao` mantida em sincronia com o novo `Status` e
-`Horas Trabalhadas` como fórmula do próprio Baserow.
-
-O campo `Senha` que já existe em Usuarios é do tipo password do Baserow e não
-pode ser lido pela API. O app não o utiliza. A autenticação usa `SenhaHash`,
-gravado com hash do Werkzeug.
-
-Se as tabelas não forem encontradas pelo nome, informe os IDs no `.env`
-(`TABLE_UNIDADES`, `TABLE_FUNCIONARIOS`, `TABLE_USUARIOS`, `TABLE_LANCAMENTOS`).
-O ID aparece na URL do Baserow ao abrir a tabela.
+Situação, situação da hora corrida e perfil só aceitam os valores previstos,
+garantido por `CHECK` no próprio banco.
 
 ## Executar
 
@@ -143,7 +119,7 @@ aprovações e os demais perfis para a lista de lançamentos.
   um e filtros por funcionário e situação.
 - **Aprovações**: fila do gestor agrupada por funcionário. Cada linha tem os
   botões Aprovar e Reprovar para as horas excedentes e os polegares verde e
-  vermelho para a hora corrida. Um clique grava no Baserow na hora. A coluna
+  vermelho para a hora corrida. Um clique grava no banco na hora. A coluna
   Com HC mostra no que o excedente ficaria se a hora corrida fosse autorizada.
   Os mesmos botões aparecem na lista de Lançamentos quando quem olha é o
   gestor. Há também decisão em lote para resolver vários dias de uma vez.
@@ -157,7 +133,7 @@ aprovações e os demais perfis para a lista de lançamentos.
 .venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-Os testes usam um repositório em memória e não tocam no Baserow. Cobrem o
+Os testes usam um repositório em memória e não tocam no banco. Cobrem o
 cálculo de horas, o login, as permissões de cada perfil e as duas travas de
 separação de funções.
 
@@ -165,15 +141,15 @@ separação de funções.
 
 ```
 app/
-  baserow.py      cliente HTTP da API do Baserow
-  schema.py       nomes de tabelas e campos, criação do que falta
+  db.py           pool de conexões com o PostgreSQL
+  schema.py       criação das tabelas e nomes das colunas
   repo.py         leitura e escrita das quatro tabelas
   auth.py         sessão, perfis e decoradores de permissão
   utils.py        conversões de hora e data
   views/          rotas por assunto
   templates/      telas
 tools/
-  setup_baserow.py  preparação do banco e usuários iniciais
+  setup_db.py     criação das tabelas e usuários iniciais
 tests/
 run.py
 ```

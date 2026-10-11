@@ -7,8 +7,8 @@
 <h1>Aprovações</h1>
 <p class="sub">
   Cada botão grava na hora. Aprovar ou reprovar decide as horas excedentes.
-  O polegar decide a hora corrida: para cima significa que a pessoa não almoçou
-  e aquela hora passa a contar como excedente.
+  Autorizar a hora corrida significa que a pessoa não almoçou e aquela hora passa
+  a contar como excedente. Para mudar uma decisão já tomada, use "alterar".
 </p>
 
 <form class="cartao filtros" method="get">
@@ -68,11 +68,9 @@
         </td>
         <td>
           {{ m.decidir_hc(i, voltar) }}
-          <span class="dica">{{ i.hc_status }}</span>
         </td>
         <td>
           {{ m.decidir_horas(i, voltar) }}
-          <span class="dica">{{ i.status }}</span>
         </td>
         <td>{{ i.decidido_por }}{% if i.decidido_em %}<br><span class="dica">{{ i.decidido_em }}</span>{% endif %}</td>
         <td><a class="botao mini secundario" href="{{ url_for('aprovacoes.decidir', row_id=i.id) }}">Analisar</a></td>

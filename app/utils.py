@@ -185,23 +185,3 @@ def month_bounds(ano, mes):
     inicio = date(ano, mes, 1)
     fim = date(ano + (mes == 12), (mes % 12) + 1, 1) - timedelta(days=1)
     return inicio.isoformat(), fim.isoformat()
-
-
-def select_value(cell):
-    """Le o valor textual de um campo single select do Baserow."""
-    if isinstance(cell, dict):
-        return cell.get("value")
-    return cell
-
-
-def link_values(cell):
-    """Le [{'id':..,'value':..}] de um campo de ligacao."""
-    if not isinstance(cell, list):
-        return []
-    return [item.get("value") for item in cell if isinstance(item, dict)]
-
-
-def link_ids(cell):
-    if not isinstance(cell, list):
-        return []
-    return [item.get("id") for item in cell if isinstance(item, dict)]

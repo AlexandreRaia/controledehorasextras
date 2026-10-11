@@ -19,18 +19,8 @@ def _int(name, default=None):
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY") or "dev-inseguro-troque-no-env"
 
-    BASEROW_URL = (os.getenv("BASEROW_URL") or "https://api.baserow.io").rstrip("/")
-    BASEROW_EMAIL = os.getenv("BASEROW_EMAIL") or ""
-    BASEROW_PASSWORD = os.getenv("BASEROW_PASSWORD") or ""
-    BASEROW_TOKEN = os.getenv("BASEROW_TOKEN") or ""
-    BASEROW_DATABASE_ID = _int("BASEROW_DATABASE_ID")
-
-    TABLE_IDS = {
-        "unidades": _int("TABLE_UNIDADES"),
-        "funcionarios": _int("TABLE_FUNCIONARIOS"),
-        "usuarios": _int("TABLE_USUARIOS"),
-        "lancamentos": _int("TABLE_LANCAMENTOS"),
-    }
+    # postgresql://usuario:senha@host:5432/banco
+    DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 
     JORNADA_PADRAO_SEGUNDOS = int(float(os.getenv("JORNADA_PADRAO_HORAS") or 8) * 3600)
     ALMOCO_SEGUNDOS = int(float(os.getenv("ALMOCO_HORAS") or 1) * 3600)

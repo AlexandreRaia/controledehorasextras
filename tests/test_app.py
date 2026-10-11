@@ -1,4 +1,4 @@
-"""Testes do calculo de horas e das regras de permissao, sem tocar no Baserow."""
+"""Testes do calculo de horas e das regras de permissao, sem tocar no banco."""
 import os
 import sys
 import unittest
@@ -84,8 +84,6 @@ class TestCalculo(unittest.TestCase):
 # ------------------------------------------------------------- repo falso
 class RepoFalso:
     """Guarda tudo em memoria e registra o que foi gravado."""
-
-    campo_aprovado_legado = "Aprovado"
 
     def __init__(self):
         self.gravacoes = []
@@ -301,7 +299,7 @@ class TestSeparacaoDeFuncoes(BaseWeb):
         self.assertEqual((acao, row_id), ("atualizar", 100))
         self.assertEqual(payload[S.F["lanc_status"]], "Aprovado")
         self.assertEqual(payload[S.F["lanc_hc_status"]], "Autorizada")
-        self.assertEqual(payload["Decidido Por"], "Fernando Cruz")
+        self.assertEqual(payload[S.F["lanc_decidido_por"]], "Fernando Cruz")
         # O gestor nao encosta no que o RH apurou. O excedente e a unica hora
         # que ele move, e so como consequencia da hora corrida que ele decidiu.
         for proibido in ("lanc_entrada", "lanc_saida", "lanc_data",
@@ -371,7 +369,6 @@ class TestBotoesDeDecisao(BaseWeb):
         _, row_id, payload = self.repo.gravacoes[-1]
         self.assertEqual(row_id, 100)
         self.assertEqual(payload[S.F["lanc_status"]], "Aprovado")
-        self.assertEqual(payload["Aprovado"], True)
         self.assertNotIn(S.F["lanc_hc_status"], payload)
 
     def test_botao_reprovar_horas(self):
@@ -380,9 +377,8 @@ class TestBotoesDeDecisao(BaseWeb):
                           follow_redirects=True)
         _, _, payload = self.repo.gravacoes[-1]
         self.assertEqual(payload[S.F["lanc_status"]], "Rejeitado")
-        self.assertEqual(payload["Aprovado"], False)
 
-    def test_polegar_para_cima_autoriza_hc_e_recalcula(self):
+    def test_autorizar_hc_na_linha_recalcula(self):
         self.entrar("fernando")
         self.cliente.post("/aprovacoes/100/hc", data={"valor": "Autorizada"},
                           follow_redirects=True)
@@ -392,13 +388,33 @@ class TestBotoesDeDecisao(BaseWeb):
         # Decidir a hora corrida nao decide as horas excedentes.
         self.assertNotIn(S.F["lanc_status"], payload)
 
-    def test_polegar_para_baixo_nega_hc(self):
+    def test_negar_hc_na_linha(self):
         self.entrar("fernando")
         self.cliente.post("/aprovacoes/100/hc", data={"valor": "Negada"},
                           follow_redirects=True)
         _, _, payload = self.repo.gravacoes[-1]
         self.assertEqual(payload[S.F["lanc_hc_status"]], "Negada")
         self.assertNotIn(S.F["lanc_excedidas"], payload)
+
+    def test_hc_nao_pedida_nao_se_decide(self):
+        self.repo._lancamentos[100]["hc_solicitada"] = False
+        self.entrar("fernando")
+        self.cliente.post("/aprovacoes/100/hc", data={"valor": "Autorizada"},
+                          follow_redirects=True)
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_botoes_so_para_o_que_falta_decidir(self):
+        # 100 pendente com HC a decidir; 101 aprovado; 102 pendente sem HC.
+        self.repo._lancamentos[101]["hc_status"] = "Autorizada"
+        self.repo._lancamentos[102]["hc_solicitada"] = False
+        self.entrar("fernando")
+        html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
+        self.assertEqual(html.count('name="valor" value="Aprovado"'), 2)  # 100 e 102
+        # 101 ja aprovado: so a opcao contraria, escondida no "alterar".
+        self.assertEqual(html.count('name="valor" value="Rejeitado"'), 3)
+        self.assertEqual(html.count("<summary>alterar</summary>"), 2)
+        self.assertEqual(html.count('name="valor" value="Autorizada"'), 1)  # so 100
+        self.assertIn("Não pedida", html)
 
     def test_valor_invalido_nao_grava(self):
         self.entrar("fernando")

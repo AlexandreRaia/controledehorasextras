@@ -25,7 +25,7 @@ HC_VALIDOS = {"Autorizada", "Negada", "Pendente"}
 
 
 def _grava_decisao(repo, item, status=None, hc_decisao=None, parecer=None):
-    """Grava no Baserow o que o gestor decidiu sobre um lancamento.
+    """Grava o que o gestor decidiu sobre um lancamento.
 
     Cada parte e opcional: da para decidir so as horas, so a hora corrida, ou
     as duas juntas. O gestor nao mexe em entrada, saida nem data. A unica hora
@@ -46,9 +46,6 @@ def _grava_decisao(repo, item, status=None, hc_decisao=None, parecer=None):
     if hc_decisao in HC_VALIDOS:
         payload[S.F["lanc_hc_status"]] = hc_decisao
         hc_final = hc_decisao
-        # Autorizar a hora corrida afirma que a pessoa nao almocou naquele dia.
-        if hc_decisao == "Autorizada" and not item["hc_solicitada"]:
-            payload[S.F["lanc_hc_solicitada"]] = True
 
     _, _, _, excedidas = calcula_jornada(
         item["entrada_seg"], item["saida_seg"],
@@ -57,10 +54,6 @@ def _grava_decisao(repo, item, status=None, hc_decisao=None, parecer=None):
     )
     if excedidas is not None and excedidas != item["excedidas_seg"]:
         payload[S.F["lanc_excedidas"]] = excedidas
-
-    status_final = status if status in STATUS_VALIDOS else item["status"]
-    if repo.campo_aprovado_legado:
-        payload[repo.campo_aprovado_legado] = status_final == "Aprovado"
     repo.lancamento_atualizar(item["id"], payload)
 
 
@@ -172,6 +165,9 @@ def decidir_hc(row_id):
         return redirect(_de_volta())
 
     item = repo.lancamento(row_id)
+    if not item["hc_solicitada"]:
+        flash("A hora corrida nao foi pedida pelo RH neste lancamento.", "erro")
+        return redirect(_de_volta())
     _grava_decisao(repo, item, hc_decisao=valor)
     depois = repo.lancamento(row_id)
     flash(
