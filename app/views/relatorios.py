@@ -47,19 +47,23 @@ def consolidado():
     ano, mes, inicio, fim = _periodo()
     unidade = request.args.get("unidade") or ""
     status = request.args.get("status") or ""
+    prontuario = (request.args.get("prontuario") or "").strip()
 
     itens = repo.lancamentos(
-        inicio=inicio, fim=fim, unidade=unidade or None, status=status or None
+        inicio=inicio, fim=fim, prontuario=prontuario or None,
+        unidade=unidade or None, status=status or None,
     )
     return render_template(
         "relatorios/consolidado.html",
         fechamento=repo.fechamento(ano, mes),
         linhas=agrupa_por_funcionario(itens),
         unidades=repo.unidades(),
+        funcionarios=repo.funcionarios(),
         ano=ano,
         mes=mes,
         unidade=unidade,
         status=status,
+        prontuario=prontuario,
     )
 
 
@@ -70,8 +74,10 @@ def consolidado_csv():
     ano, mes, inicio, fim = _periodo()
     unidade = request.args.get("unidade") or ""
     status = request.args.get("status") or ""
+    prontuario = (request.args.get("prontuario") or "").strip()
     itens = repo.lancamentos(
-        inicio=inicio, fim=fim, unidade=unidade or None, status=status or None
+        inicio=inicio, fim=fim, prontuario=prontuario or None,
+        unidade=unidade or None, status=status or None,
     )
 
     buffer = io.StringIO()

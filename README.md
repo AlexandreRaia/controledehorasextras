@@ -15,8 +15,9 @@ funcionarios, usuarios e lancamentos.
 
 Duas travas garantem a separação de funções:
 
-- O RH só altera ou exclui um lançamento enquanto ele está **Pendente**. Depois
-  da decisão do gestor, a tela de edição é bloqueada.
+- O RH só altera um lançamento enquanto ele está **Pendente**. Depois da decisão
+  do gestor, a tela de edição é bloqueada. Já a exclusão continua liberada ao RH,
+  decidido ou não, até o fechamento do mês.
 - O gestor grava apenas situação, hora corrida, parecer e a trilha de quem
   decidiu. Data, entrada, saída e funcionário nunca entram no payload dele.
 

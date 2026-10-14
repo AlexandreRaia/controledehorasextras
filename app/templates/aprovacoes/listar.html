@@ -15,6 +15,17 @@
 
 <form class="cartao filtros" method="get">
   {{ m.seletor_mes(ano, mes) }}
+  <div class="campo">
+    <label for="prontuario">Funcionário</label>
+    <select id="prontuario" name="prontuario">
+      <option value="">Todos</option>
+      {% for f in funcionarios %}
+      <option value="{{ f.prontuario }}" {% if f.prontuario == prontuario %}selected{% endif %}>
+        {{ f.nome }} ({{ f.prontuario }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
   <div class="campo estreito">
     <label for="status">Situação</label>
     <select id="status" name="status">

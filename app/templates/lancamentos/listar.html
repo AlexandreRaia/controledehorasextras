@@ -87,16 +87,18 @@
         <td>{{ i.lancado_por }}</td>
         {% if pode_lancar %}
         <td>
-          {% if i.status == 'Pendente' and not i.fechado %}
+          {% if i.fechado %}
+          <span class="dica">Mês fechado</span>
+          {% else %}
           <div class="acoes">
+            {% if i.status == 'Pendente' %}
             <a class="botao mini secundario" href="{{ url_for('lancamentos.editar', row_id=i.id) }}">Editar</a>
+            {% endif %}
             <form method="post" action="{{ url_for('lancamentos.excluir', row_id=i.id) }}"
                   onsubmit="return confirm('Excluir o lançamento de {{ g.funcionario }} em {{ i.data_br }}?');">
               <button class="botao mini perigo" type="submit">Excluir</button>
             </form>
           </div>
-          {% else %}
-          <span class="dica">{{ 'Mês fechado' if i.fechado else 'Bloqueado pelo gestor' }}</span>
           {% endif %}
         </td>
         {% endif %}

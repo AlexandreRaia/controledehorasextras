@@ -311,6 +311,32 @@ class TestPermissoes(BaseWeb):
         self.assertEqual(self.cliente.get("/lancamentos/novo").status_code, 403)
 
 
+class TestFiltroPorFuncionario(BaseWeb):
+    def test_todas_as_listas_oferecem_o_filtro(self):
+        for login, rota in (
+            ("flavio", "/lancamentos/"),
+            ("fernando", "/aprovacoes/"),
+            ("veridiana", "/relatorios"),
+        ):
+            self.cliente.get("/logout")
+            self.entrar(login)
+            html = self.cliente.get(rota).get_data(as_text=True)
+            self.assertIn('name="prontuario"', html, rota)
+
+    def test_aprovacoes_e_relatorio_filtram_pelo_funcionario(self):
+        self.entrar("fernando")
+        html = self.cliente.get("/aprovacoes/?status=&prontuario=25755").get_data(as_text=True)
+        self.assertIn("Alexandre P. S. Raia", html.split("<tbody", 1)[1])
+        self.assertNotIn("<strong>Anderson</strong>", html)
+        self.cliente.get("/logout")
+        self.entrar("veridiana")
+        html = self.cliente.get("/relatorios?prontuario=48906").get_data(as_text=True)
+        self.assertNotIn("<strong>Alexandre P. S. Raia</strong>", html)
+        csv = self.cliente.get("/relatorios/csv?prontuario=48906").get_data(as_text=True)
+        self.assertIn("48906", csv)
+        self.assertNotIn("25755", csv)
+
+
 class TestSeparacaoDeFuncoes(BaseWeb):
     def test_rh_nao_edita_lancamento_ja_decidido(self):
         self.entrar("flavio")
@@ -318,10 +344,25 @@ class TestSeparacaoDeFuncoes(BaseWeb):
         self.assertIn("ja analisado pelo gestor", resposta.get_data(as_text=True).lower())
         self.assertEqual(self.repo.gravacoes, [])
 
-    def test_rh_nao_exclui_lancamento_ja_decidido(self):
+    def test_rh_exclui_lancamento_ja_decidido_com_o_mes_aberto(self):
         self.entrar("flavio")
         self.cliente.post("/lancamentos/101/excluir", follow_redirects=True)
+        self.assertEqual(self.repo.gravacoes, [("excluir", 101)])
+
+    def test_gestor_e_operacoes_nao_excluem(self):
+        for login in ("fernando", "veridiana", "alexandre"):
+            self.cliente.get("/logout")
+            self.entrar(login)
+            resposta = self.cliente.post("/lancamentos/100/excluir")
+            self.assertEqual(resposta.status_code, 403, login)
         self.assertEqual(self.repo.gravacoes, [])
+
+    def test_botao_excluir_aparece_em_lancamento_decidido_mas_editar_nao(self):
+        self.entrar("flavio")
+        html = self.cliente.get("/lancamentos/").get_data(as_text=True)
+        self.assertIn("/lancamentos/101/excluir", html)
+        self.assertNotIn("/lancamentos/101/editar", html)
+        self.assertIn("/lancamentos/100/editar", html)
 
     def test_rh_edita_enquanto_pendente(self):
         self.entrar("flavio")

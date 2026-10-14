@@ -238,8 +238,6 @@ def excluir(row_id):
     item = repo.lancamento(row_id)
     if repo.mes_fechado_data(item["data"]):
         flash(MSG_FECHADO, "erro")
-    elif item["status"] != STATUS_PENDENTE:
-        flash("Lancamento ja analisado pelo gestor. Exclusao bloqueada.", "erro")
     else:
         repo.lancamento_excluir(row_id)
         flash("Lancamento excluido.", "ok")

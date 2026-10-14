@@ -86,8 +86,11 @@ def listar():
         ano, mes = hoje.year, hoje.month
     inicio, fim = month_bounds(ano, mes)
     status = request.args.get("status", "Pendente")
+    prontuario = (request.args.get("prontuario") or "").strip()
 
-    itens = repo.lancamentos(inicio=inicio, fim=fim, status=status or None)
+    itens = repo.lancamentos(
+        inicio=inicio, fim=fim, prontuario=prontuario or None, status=status or None
+    )
     fechamento = repo.fechamento(ano, mes)
     for i in itens:
         i["fechado"] = bool(fechamento)
@@ -106,6 +109,8 @@ def listar():
         ano=ano,
         mes=mes,
         status=status,
+        prontuario=prontuario,
+        funcionarios=repo.funcionarios(),
         somente_relevantes=somente_relevantes,
         total_excedido=sum(i["excedidas_seg"] or 0 for i in mostrados),
     )

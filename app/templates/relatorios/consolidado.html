@@ -31,6 +31,17 @@
       {% endfor %}
     </select>
   </div>
+  <div class="campo">
+    <label for="prontuario">Funcionário</label>
+    <select id="prontuario" name="prontuario">
+      <option value="">Todos</option>
+      {% for f in funcionarios %}
+      <option value="{{ f.prontuario }}" {% if f.prontuario == prontuario %}selected{% endif %}>
+        {{ f.nome }} ({{ f.prontuario }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
   <div class="campo estreito">
     <label for="status">Situação</label>
     <select id="status" name="status">
@@ -43,7 +54,7 @@
   <div class="campo estreito"><button class="botao" type="submit">Filtrar</button></div>
   <div class="campo estreito">
     <a class="botao secundario"
-       href="{{ url_for('relatorios.consolidado_csv', ano=ano, mes=mes, unidade=unidade, status=status) }}">
+       href="{{ url_for('relatorios.consolidado_csv', ano=ano, mes=mes, unidade=unidade, status=status, prontuario=prontuario) }}">
       Baixar CSV
     </a>
   </div>
