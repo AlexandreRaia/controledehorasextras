@@ -54,13 +54,17 @@ def _monta_payload(form, funcionario):
 
     # A hora corrida ainda nao foi decidida pelo gestor, entao o excedente
     # nasce com o almoco descontado. A decisao dele recalcula depois.
+    jornada, almoco = Config.parametros_jornada(funcionario["jornada_horas"])
+    plantonista = funcionario["jornada_horas"] == Config.JORNADA_PLANTAO_HORAS
+    fora_escala = plantonista and bool(form.get("fora_escala"))
     permanencia, _, trabalhadas, excedidas = calcula_jornada(
-        entrada, saida, Config.JORNADA_PADRAO_SEGUNDOS, Config.ALMOCO_SEGUNDOS
+        entrada, saida, jornada, almoco, fora_escala=fora_escala
     )
     if permanencia is not None and permanencia > 20 * 3600:
         erros.append("Permanencia maior que 20 horas. Confira entrada e saida.")
 
-    hc = bool(form.get("hc_solicitada"))
+    # Quem nao tem hora de almoco a descontar nao tem hora corrida a pedir.
+    hc = bool(form.get("hc_solicitada")) and almoco > 0
     usuario = usuario_atual()
     payload = {
         S.F["lanc_data"]: data_iso,
@@ -70,6 +74,7 @@ def _monta_payload(form, funcionario):
         S.F["lanc_saida"]: saida,
         S.F["lanc_excedidas"]: excedidas,
         S.F["lanc_unidade"]: funcionario["unidade"],
+        S.F["lanc_fora_escala"]: fora_escala,
         S.F["lanc_obs_rh"]: (form.get("obs_rh") or "").strip(),
         S.F["lanc_hc_solicitada"]: hc,
         S.F["lanc_lancado_por"]: usuario["nome"] if usuario else "",
@@ -171,12 +176,7 @@ def editar(row_id):
     if repo.mes_fechado_data(item["data"]):
         flash(MSG_FECHADO, "erro")
         return redirect(url_for("lancamentos.listar"))
-    if item["status"] != STATUS_PENDENTE:
-        flash(
-            "Lancamento ja analisado pelo gestor. O RH nao pode mais altera-lo.",
-            "erro",
-        )
-        return redirect(url_for("lancamentos.listar"))
+    decidido = _ja_decidido(item)
 
     funcionarios = repo.funcionarios(somente_ativos=True)
     if request.method == "POST":
@@ -185,7 +185,7 @@ def editar(row_id):
             flash("Selecione um funcionario valido.", "erro")
             return render_template(
                 "lancamentos/form.html", funcionarios=funcionarios,
-                item=item, hoje=item["data"], form=request.form,
+                item=item, hoje=item["data"], form=request.form, decidido=decidido,
             )
 
         payload, erros, trabalhadas, excedidas = _monta_payload(
@@ -204,16 +204,23 @@ def editar(row_id):
                 flash(erro, "erro")
             return render_template(
                 "lancamentos/form.html", funcionarios=funcionarios,
-                item=item, hoje=item["data"], form=request.form,
+                item=item, hoje=item["data"], form=request.form, decidido=decidido,
             )
 
-        # O RH nunca escreve Status nem HC Status ja decididos pelo gestor.
+        # O RH nunca decide: editar devolve o lancamento ao gestor, entao a
+        # unica situacao que ele grava aqui e Pendente, com a decisao zerada.
         payload[S.F["lanc_hc_status"]] = (
             HC_PENDENTE if payload[S.F["lanc_hc_solicitada"]] else HC_NAO_SOLICITADA
         )
+        payload[S.F["lanc_status"]] = STATUS_PENDENTE
+        payload[S.F["lanc_parecer"]] = ""
+        payload[S.F["lanc_decidido_por"]] = ""
+        payload[S.F["lanc_decidido_em"]] = None
         repo.lancamento_atualizar(row_id, payload)
         flash(
-            f"Lancamento atualizado. Excedentes {format_duration(excedidas)}.", "ok"
+            f"Lancamento atualizado. Excedentes {format_duration(excedidas)}."
+            + (" Ele voltou para nova decisao do gestor." if decidido else ""),
+            "ok",
         )
         return redirect(url_for("lancamentos.listar"))
 
@@ -224,10 +231,11 @@ def editar(row_id):
         "saida": format_duration(item["saida_seg"]),
         "obs_rh": item["obs_rh"],
         "hc_solicitada": item["hc_solicitada"],
+        "fora_escala": item["fora_escala"],
     }
     return render_template(
         "lancamentos/form.html", funcionarios=funcionarios,
-        item=item, hoje=item["data"], form=form,
+        item=item, hoje=item["data"], form=form, decidido=decidido,
     )
 
 
@@ -242,6 +250,11 @@ def excluir(row_id):
         repo.lancamento_excluir(row_id)
         flash("Lancamento excluido.", "ok")
     return redirect(url_for("lancamentos.listar"))
+
+
+def _ja_decidido(item):
+    """O gestor ja decidiu as horas ou a hora corrida deste lancamento."""
+    return item["status"] != STATUS_PENDENTE or item["hc_status"] in ("Autorizada", "Negada")
 
 
 def _funcionario_do_form(repo, form):

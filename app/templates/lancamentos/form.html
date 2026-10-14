@@ -8,6 +8,7 @@
   como excedente. Marque a hora corrida quando a pessoa não parou para almoçar:
   se o gestor autorizar, essa hora passa a contar como excedente.
   A saída menor que a entrada é tratada como virada de meia-noite.
+  O plantonista 12x36 tem jornada de 12 horas e não tem hora de almoço.
 </p>
 
 <form class="cartao" method="post">
@@ -22,7 +23,7 @@
       <select id="funcionario_id" name="funcionario_id" required>
         <option value="">Selecione</option>
         {% for f in funcionarios %}
-        <option value="{{ f.id }}"
+        <option value="{{ f.id }}" data-jornada="{{ f.jornada_horas }}"
           {% if form.get('funcionario_id')|string == f.id|string %}selected{% endif %}>
           {{ f.nome }} — {{ f.prontuario }}{% if f.unidade %} ({{ f.unidade }}){% endif %}
         </option>
@@ -47,6 +48,11 @@
              {% if form.get('hc_solicitada') %}checked{% endif %}>
       <label for="hc_solicitada">Hora corrida: não parou para almoçar</label>
     </div>
+    <div class="campo checa so-plantao">
+      <input type="checkbox" id="fora_escala" name="fora_escala"
+             {% if form.get('fora_escala') %}checked{% endif %}>
+      <label for="fora_escala">Plantão no dia de folga: todas as horas são excedentes</label>
+    </div>
   </div>
 
   <div class="linha">
@@ -57,10 +63,13 @@
   </div>
 
   {% if item %}
-  <p class="dica">
-    Situação atual: {{ item.status }}.
-    Depois que o gestor decide, este lançamento deixa de ser editável.
+  <p class="dica">Situação atual: {{ item.status }}.</p>
+  {% if decidido %}
+  <p class="destaque">
+    O gestor já decidiu este lançamento. Ao salvar, a decisão é desfeita e ele
+    volta para o gestor decidir de novo.
   </p>
+  {% endif %}
   {% endif %}
 
   <div class="acoes">
@@ -68,4 +77,19 @@
     <a class="botao secundario" href="{{ url_for('lancamentos.listar') }}">Cancelar</a>
   </div>
 </form>
+
+<script>
+// Hora corrida so existe para quem almoca; folga so para o plantonista 12x36.
+function ajustaRegime() {
+  const opcao = document.querySelector('#funcionario_id option:checked');
+  const plantao = !!opcao && opcao.dataset.jornada === '12';
+  const hc = document.getElementById('hc_solicitada').closest('.campo');
+  hc.hidden = plantao;
+  document.querySelector('.so-plantao').hidden = !plantao;
+  if (plantao) document.getElementById('hc_solicitada').checked = false;
+  else document.getElementById('fora_escala').checked = false;
+}
+document.getElementById('funcionario_id').addEventListener('change', ajustaRegime);
+ajustaRegime();
+</script>
 {% endblock %}

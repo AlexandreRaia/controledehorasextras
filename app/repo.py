@@ -28,13 +28,14 @@ class MesFechado(RuntimeError):
 
 SQL_FUNCIONARIO = """
     SELECT f.id, f.nome, f.prontuario, f.telefone, f.cargo, f.unidade_id, f.ativo,
-           COALESCE(u.nome, '') AS unidade
+           f.jornada_horas, COALESCE(u.nome, '') AS unidade
       FROM funcionarios f
       LEFT JOIN unidades u ON u.id = f.unidade_id
 """
 
 SQL_LANCAMENTO = """
-    SELECT l.*, COALESCE(f.nome, '') AS funcionario
+    SELECT l.*, COALESCE(f.nome, '') AS funcionario,
+           COALESCE(f.jornada_horas, 8) AS jornada_horas
       FROM lancamentos l
       LEFT JOIN funcionarios f ON f.id = l.funcionario_id
 """
@@ -82,6 +83,7 @@ class Repo:
             "unidade": r["unidade"],
             "unidade_ids": [r["unidade_id"]] if r["unidade_id"] else [],
             "ativo": r["ativo"],
+            "jornada_horas": r["jornada_horas"],
         }
 
     def funcionarios(self, somente_ativos=False):
@@ -110,19 +112,21 @@ class Repo:
             dados.get("cargo") or "",
             int(unidade_id) if unidade_id else None,
             bool(dados.get("ativo")),
+            int(dados.get("jornada_horas") or 8),
         )
 
     def funcionario_criar(self, dados):
         return self.db.um(
-            "INSERT INTO funcionarios (nome, prontuario, telefone, cargo, unidade_id, ativo)"
-            " VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            "INSERT INTO funcionarios"
+            " (nome, prontuario, telefone, cargo, unidade_id, ativo, jornada_horas)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
             self._valores_funcionario(dados),
         )
 
     def funcionario_atualizar(self, row_id, dados):
         self.db.executa(
             "UPDATE funcionarios SET nome = %s, prontuario = %s, telefone = %s,"
-            " cargo = %s, unidade_id = %s, ativo = %s WHERE id = %s",
+            " cargo = %s, unidade_id = %s, ativo = %s, jornada_horas = %s WHERE id = %s",
             self._valores_funcionario(dados) + (row_id,),
         )
 
@@ -180,14 +184,16 @@ class Repo:
     def _map_lancamento(self, r):
         entrada, saida = r["entrada_seg"], r["saida_seg"]
         hc_status = r["hc_status"]
+        fora_escala = bool(r["fora_escala"])
+        jornada, almoco_cfg = self.config.parametros_jornada(r["jornada_horas"])
         permanencia, almoco, trabalhadas, excedidas = calcula_jornada(
-            entrada, saida, self.config.JORNADA_PADRAO_SEGUNDOS,
-            self.config.ALMOCO_SEGUNDOS, hc_autorizada=hc_status == "Autorizada",
+            entrada, saida, jornada, almoco_cfg,
+            hc_autorizada=hc_status == "Autorizada", fora_escala=fora_escala,
         )
         # Quanto o excedente viraria se o gestor autorizasse a hora corrida.
         _, _, _, excedidas_com_hc = calcula_jornada(
-            entrada, saida, self.config.JORNADA_PADRAO_SEGUNDOS,
-            self.config.ALMOCO_SEGUNDOS, hc_autorizada=True,
+            entrada, saida, jornada, almoco_cfg,
+            hc_autorizada=True, fora_escala=fora_escala,
         )
         data_iso = _iso(r["data"])
         return {
@@ -195,6 +201,8 @@ class Repo:
             "prontuario": r["prontuario"],
             "funcionario": r["funcionario"],
             "funcionario_ids": [r["funcionario_id"]] if r["funcionario_id"] else [],
+            "jornada_horas": r["jornada_horas"],
+            "fora_escala": fora_escala,
             "data": data_iso,
             "data_br": format_date_br(data_iso),
             "entrada_seg": entrada,

@@ -114,6 +114,7 @@ tr.subtotal .dica { font-weight: 500; }
 .e-aprovado { background: var(--ok-fundo); color: var(--ok); }
 .e-rejeitado { background: var(--erro-fundo); color: var(--erro); }
 .e-neutro { background: #eceff3; color: var(--suave); }
+[hidden] { display: none !important; }
 .icone { width: 12px; height: 12px; flex: none; }
 .botao .icone { margin-right: 4px; vertical-align: -1px; }
 

@@ -74,6 +74,7 @@ def funcionario_salvar():
         "cargo": (request.form.get("cargo") or "").strip(),
         "unidade_id": request.form.get("unidade_id") or None,
         "ativo": bool(request.form.get("ativo")),
+        "jornada_horas": 12 if request.form.get("jornada_horas") == "12" else 8,
     }
 
     erros = []

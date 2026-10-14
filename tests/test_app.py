@@ -46,13 +46,24 @@ class TestCalculo(unittest.TestCase):
         perm, almoco, trab, exced = self.jornada("8:00", "19:30")
         self.assertEqual(format_duration(perm), "11:30")
         self.assertEqual(format_duration(almoco), "1:00")
-        self.assertEqual(format_duration(trab), "10:30")
+        self.assertEqual(format_duration(trab), "8:00")
         self.assertEqual(format_duration(exced), "2:30")
+
+    def test_trabalhadas_mostra_so_a_jornada_normal(self):
+        # 8:00 as 19:00: permanencia 11h, trabalhadas 8h, 2h sem HC e 3h com HC.
+        perm, _, trab, exced = self.jornada("8:00", "19:00")
+        self.assertEqual(format_duration(perm), "11:00")
+        self.assertEqual(format_duration(trab), "8:00")
+        self.assertEqual(format_duration(exced), "2:00")
+        perm, _, trab, exced = self.jornada("8:00", "19:00", hc=True)
+        self.assertEqual(format_duration(perm), "11:00")
+        self.assertEqual(format_duration(trab), "8:00")
+        self.assertEqual(format_duration(exced), "3:00")
 
     def test_hora_corrida_devolve_a_hora_do_almoco(self):
         _, almoco, trab, exced = self.jornada("8:00", "19:30", hc=True)
         self.assertEqual(almoco, 0)
-        self.assertEqual(format_duration(trab), "11:30")
+        self.assertEqual(format_duration(trab), "8:00")
         self.assertEqual(format_duration(exced), "3:30")
 
     def test_desconto_nunca_derruba_abaixo_da_jornada(self):
@@ -70,6 +81,44 @@ class TestCalculo(unittest.TestCase):
         self.assertEqual(almoco, 0)
         self.assertEqual(format_duration(trab), "4:00")
         self.assertEqual(exced, 0)
+
+    def plantao(self, entrada, saida, fora_escala=False):
+        # Plantonista 12x36: jornada de 12 horas e nenhum almoco a descontar.
+        jornada, almoco = Config.parametros_jornada(12)
+        return calcula_jornada(
+            parse_duration(entrada), parse_duration(saida), jornada, almoco,
+            fora_escala=fora_escala,
+        )
+
+    def test_parametros_por_jornada(self):
+        self.assertEqual(Config.parametros_jornada(12), (12 * 3600, 0))
+        self.assertEqual(
+            Config.parametros_jornada(8),
+            (Config.JORNADA_PADRAO_SEGUNDOS, Config.ALMOCO_SEGUNDOS),
+        )
+
+    def test_plantao_de_12_horas_nao_tem_excedente_nem_almoco(self):
+        perm, almoco, trab, exced = self.plantao("7:00", "19:00")
+        self.assertEqual(format_duration(perm), "12:00")
+        self.assertEqual(almoco, 0)
+        self.assertEqual(format_duration(trab), "12:00")
+        self.assertEqual(exced, 0)
+
+    def test_plantao_passando_de_12_horas_gera_excedente(self):
+        _, _, trab, exced = self.plantao("7:00", "20:30")
+        self.assertEqual(format_duration(trab), "12:00")
+        self.assertEqual(format_duration(exced), "1:30")
+
+    def test_plantao_noturno_vira_a_meia_noite(self):
+        perm, _, trab, exced = self.plantao("19:00", "7:00")
+        self.assertEqual(format_duration(perm), "12:00")
+        self.assertEqual(exced, 0)
+
+    def test_plantao_no_dia_de_folga_e_todo_excedente(self):
+        perm, _, trab, exced = self.plantao("7:00", "19:00", fora_escala=True)
+        self.assertEqual(format_duration(perm), "12:00")
+        self.assertEqual(trab, 0)
+        self.assertEqual(format_duration(exced), "12:00")
 
     def test_sem_excedente_dentro_da_jornada(self):
         _, _, trab, exced = self.jornada("8:00", "15:00")
@@ -94,11 +143,15 @@ class RepoFalso:
         self._funcionarios = [{
             "id": 1, "nome": "Alexandre P. S. Raia", "prontuario": "25755",
             "telefone": "(11)975492889", "cargo": "Analista de TI",
-            "unidade": "Detran", "unidade_ids": [18], "ativo": True,
+            "unidade": "Detran", "unidade_ids": [18], "ativo": True, "jornada_horas": 8,
         }, {
             "id": 27, "nome": "Anderson", "prontuario": "48906",
             "telefone": "(11)914127164", "cargo": "Motorista",
-            "unidade": "Detran", "unidade_ids": [18], "ativo": True,
+            "unidade": "Detran", "unidade_ids": [18], "ativo": True, "jornada_horas": 8,
+        }, {
+            "id": 30, "nome": "Paulo Plantao", "prontuario": "70001",
+            "telefone": "", "cargo": "Plantonista",
+            "unidade": "Detran", "unidade_ids": [18], "ativo": True, "jornada_horas": 12,
         }]
         self._usuarios = [
             self._usuario(1, "Alexandre Raia", "alexandre", "Administrador"),
@@ -136,6 +189,7 @@ class RepoFalso:
             "excedidas_com_hc_seg": exced_hc,
             "status": status, "hc_solicitada": True, "hc_status": "Pendente",
             "obs_rh": "", "parecer": "", "unidade": "Detran",
+            "jornada_horas": 8, "fora_escala": False,
             "lancado_por": "Flavio Galisteu", "lancado_em": "01/10/2026 18:00",
             "decidido_por": "", "decidido_em": "",
         }
@@ -155,6 +209,13 @@ class RepoFalso:
 
     def funcionario_por_prontuario(self, prontuario):
         return next((f for f in self._funcionarios if f["prontuario"] == prontuario), None)
+
+    def funcionario_criar(self, dados):
+        self.funcionario_gravado = dados
+        return {"id": 999}
+
+    def funcionario_atualizar(self, row_id, dados):
+        self.funcionario_gravado = dados
 
     def usuarios(self):
         return list(self._usuarios)
@@ -311,6 +372,42 @@ class TestPermissoes(BaseWeb):
         self.assertEqual(self.cliente.get("/lancamentos/novo").status_code, 403)
 
 
+class TestPlantonista(BaseWeb):
+    def lanca(self, funcionario_id, **extra):
+        self.entrar("flavio")
+        dados = {"data": "2026-10-05", "funcionario_id": funcionario_id,
+                 "entrada": "7:00", "saida": "19:00", **extra}
+        self.cliente.post("/lancamentos/novo", data=dados)
+        acao, payload = self.repo.gravacoes[-1]
+        self.assertEqual(acao, "criar")
+        return payload
+
+    def test_plantao_normal_nao_gera_excedente(self):
+        payload = self.lanca("30")
+        self.assertEqual(payload[S.F["lanc_excedidas"]], 0)
+        self.assertFalse(payload[S.F["lanc_fora_escala"]])
+
+    def test_plantao_no_dia_de_folga_conta_inteiro_como_excedente(self):
+        payload = self.lanca("30", fora_escala="on")
+        self.assertTrue(payload[S.F["lanc_fora_escala"]])
+        self.assertEqual(payload[S.F["lanc_excedidas"]], 12 * 3600)
+
+    def test_plantonista_nao_pede_hora_corrida(self):
+        payload = self.lanca("30", hc_solicitada="on")
+        self.assertFalse(payload[S.F["lanc_hc_solicitada"]])
+        self.assertEqual(payload[S.F["lanc_hc_status"]], "Nao solicitada")
+
+    def test_folga_so_vale_para_plantonista(self):
+        payload = self.lanca("1", fora_escala="on")
+        self.assertFalse(payload[S.F["lanc_fora_escala"]])
+
+    def test_cadastro_grava_a_jornada(self):
+        self.entrar("alexandre")
+        self.cliente.post("/cadastros/funcionarios/salvar", data={
+            "nome": "Novo", "prontuario": "999", "jornada_horas": "12", "ativo": "on"})
+        self.assertEqual(self.repo.funcionario_gravado["jornada_horas"], 12)
+
+
 class TestFiltroPorFuncionario(BaseWeb):
     def test_todas_as_listas_oferecem_o_filtro(self):
         for login, rota in (
@@ -338,11 +435,24 @@ class TestFiltroPorFuncionario(BaseWeb):
 
 
 class TestSeparacaoDeFuncoes(BaseWeb):
-    def test_rh_nao_edita_lancamento_ja_decidido(self):
+    def test_rh_edita_lancamento_decidido_e_ele_volta_ao_gestor(self):
         self.entrar("flavio")
-        resposta = self.cliente.get("/lancamentos/101/editar", follow_redirects=True)
-        self.assertIn("ja analisado pelo gestor", resposta.get_data(as_text=True).lower())
-        self.assertEqual(self.repo.gravacoes, [])
+        html = self.cliente.get("/lancamentos/101/editar").get_data(as_text=True)
+        self.assertIn("decisão é desfeita", html)
+        resposta = self.cliente.post(
+            "/lancamentos/101/editar",
+            data={"data": "2026-10-01", "funcionario_id": "27",
+                  "entrada": "8:00", "saida": "17:00"},
+            follow_redirects=True,
+        )
+        self.assertIn("voltou para nova decisao", resposta.get_data(as_text=True))
+        acao, row_id, payload = self.repo.gravacoes[-1]
+        self.assertEqual((acao, row_id), ("atualizar", 101))
+        # O RH so devolve o lancamento: a unica situacao que grava e Pendente.
+        self.assertEqual(payload[S.F["lanc_status"]], "Pendente")
+        self.assertEqual(payload[S.F["lanc_decidido_por"]], "")
+        self.assertIsNone(payload[S.F["lanc_decidido_em"]])
+        self.assertEqual(payload[S.F["lanc_parecer"]], "")
 
     def test_rh_exclui_lancamento_ja_decidido_com_o_mes_aberto(self):
         self.entrar("flavio")
@@ -357,12 +467,14 @@ class TestSeparacaoDeFuncoes(BaseWeb):
             self.assertEqual(resposta.status_code, 403, login)
         self.assertEqual(self.repo.gravacoes, [])
 
-    def test_botao_excluir_aparece_em_lancamento_decidido_mas_editar_nao(self):
+    def test_botoes_editar_e_excluir_com_icone_em_qualquer_situacao(self):
         self.entrar("flavio")
         html = self.cliente.get("/lancamentos/").get_data(as_text=True)
-        self.assertIn("/lancamentos/101/excluir", html)
-        self.assertNotIn("/lancamentos/101/editar", html)
-        self.assertIn("/lancamentos/100/editar", html)
+        for row_id in (100, 101):
+            self.assertIn(f"/lancamentos/{row_id}/editar", html)
+            self.assertIn(f"/lancamentos/{row_id}/excluir", html)
+        self.assertIn("M10.8 2.7", html, "icone de lapis")
+        self.assertIn("M6.2 4.5V3", html, "icone de lixeira")
 
     def test_rh_edita_enquanto_pendente(self):
         self.entrar("flavio")
@@ -375,9 +487,9 @@ class TestSeparacaoDeFuncoes(BaseWeb):
         self.assertEqual(resposta.status_code, 200)
         acao, row_id, payload = self.repo.gravacoes[-1]
         self.assertEqual((acao, row_id), ("atualizar", 100))
-        # O RH nao decide: Status e parecer nao podem ir no payload.
-        self.assertNotIn(S.F["lanc_status"], payload)
-        self.assertNotIn(S.F["lanc_parecer"], payload)
+        # O RH nao decide: so pode gravar Pendente, nunca Aprovado/Rejeitado.
+        self.assertEqual(payload[S.F["lanc_status"]], "Pendente")
+        self.assertEqual(payload[S.F["lanc_parecer"]], "")
         # 8:00 as 18:00 = 10h de permanencia, menos 1h de almoco, menos 8h
         self.assertEqual(payload[S.F["lanc_excedidas"]], 3600)
 

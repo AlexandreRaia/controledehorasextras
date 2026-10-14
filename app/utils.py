@@ -58,7 +58,8 @@ def horas_decimais(seconds):
     return round(float(seconds) / 3600.0, 2)
 
 
-def calcula_jornada(entrada_seg, saida_seg, jornada_padrao, almoco=0, hc_autorizada=False):
+def calcula_jornada(entrada_seg, saida_seg, jornada_padrao, almoco=0,
+                    hc_autorizada=False, fora_escala=False):
     """Permanencia, desconto do almoco, horas trabalhadas e excedentes.
 
     A permanencia e a diferenca entre saida e entrada, virando a meia-noite
@@ -67,7 +68,11 @@ def calcula_jornada(entrada_seg, saida_seg, jornada_padrao, almoco=0, hc_autoriz
     nao almocou e essa hora entra no excedente.
 
     O desconto nunca derruba a jornada abaixo do padrao, entao quem fica 8:30
-    nao aparece devendo meia hora.
+    nao aparece devendo meia hora. As horas trabalhadas mostram so a jornada
+    normal, no maximo o padrao; o que passa dela e excedente.
+
+    Plantao fora da escala (12x36 trabalhado no dia de folga) nao tem jornada
+    normal: toda a permanencia e excedente.
     """
     if entrada_seg is None or saida_seg is None:
         return None, None, None, None
@@ -76,13 +81,17 @@ def calcula_jornada(entrada_seg, saida_seg, jornada_padrao, almoco=0, hc_autoriz
     if permanencia < 0:
         permanencia += 24 * 3600
 
+    if fora_escala:
+        return permanencia, 0, 0, permanencia
+
     if hc_autorizada:
         desconto = 0
     else:
         desconto = max(0, min(almoco, permanencia - jornada_padrao))
 
-    trabalhadas = permanencia - desconto
-    excedidas = max(0, trabalhadas - jornada_padrao)
+    liquidas = permanencia - desconto
+    trabalhadas = min(liquidas, jornada_padrao)
+    excedidas = max(0, liquidas - jornada_padrao)
     return permanencia, desconto, trabalhadas, excedidas
 
 
@@ -102,6 +111,7 @@ def agrupa_por_funcionario(itens):
                 "funcionario": item["funcionario"] or chave,
                 "prontuario": item["prontuario"],
                 "unidade": item["unidade"],
+                "jornada_horas": item.get("jornada_horas", 8),
                 "itens": [],
                 "dias": 0,
                 "permanencia": 0,

@@ -62,12 +62,12 @@
       <tr class="grupo">
         <td colspan="{{ colunas }}">
           <strong>{{ g.funcionario }}</strong>
-          <span class="dica">prontuário {{ g.prontuario }}{% if g.unidade %} · {{ g.unidade }}{% endif %}</span>
+          <span class="dica">prontuário {{ g.prontuario }}{% if g.unidade %} · {{ g.unidade }}{% endif %}{% if g.jornada_horas == 12 %} · plantonista 12x36{% endif %}</span>
         </td>
       </tr>
       {% for i in g.itens %}
       <tr>
-        <td>{{ i.data_br }}</td>
+        <td>{{ i.data_br }}{% if i.fora_escala %} <span class="etiqueta e-neutro" title="Plantão no dia de folga">Folga</span>{% endif %}</td>
         <td class="num">{{ i.entrada_seg | dur }}</td>
         <td class="num">{{ i.saida_seg | dur }}</td>
         <td class="num">{{ i.permanencia_seg | dur }}</td>
@@ -91,12 +91,12 @@
           <span class="dica">Mês fechado</span>
           {% else %}
           <div class="acoes">
-            {% if i.status == 'Pendente' %}
-            <a class="botao mini secundario" href="{{ url_for('lancamentos.editar', row_id=i.id) }}">Editar</a>
-            {% endif %}
+            <a class="botao mini secundario" href="{{ url_for('lancamentos.editar', row_id=i.id) }}"
+               title="Editar este lançamento">{{ m.icone('editar') }}Editar</a>
             <form method="post" action="{{ url_for('lancamentos.excluir', row_id=i.id) }}"
                   onsubmit="return confirm('Excluir o lançamento de {{ g.funcionario }} em {{ i.data_br }}?');">
-              <button class="botao mini perigo" type="submit">Excluir</button>
+              <button class="botao mini perigo" type="submit"
+                      title="Excluir este lançamento">{{ m.icone('lixeira') }}Excluir</button>
             </form>
           </div>
           {% endif %}

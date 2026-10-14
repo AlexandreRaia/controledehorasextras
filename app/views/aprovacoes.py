@@ -48,10 +48,10 @@ def _grava_decisao(repo, item, status=None, hc_decisao=None, parecer=None):
         payload[S.F["lanc_hc_status"]] = hc_decisao
         hc_final = hc_decisao
 
+    jornada, almoco = Config.parametros_jornada(item["jornada_horas"])
     _, _, _, excedidas = calcula_jornada(
-        item["entrada_seg"], item["saida_seg"],
-        Config.JORNADA_PADRAO_SEGUNDOS, Config.ALMOCO_SEGUNDOS,
-        hc_autorizada=hc_final == "Autorizada",
+        item["entrada_seg"], item["saida_seg"], jornada, almoco,
+        hc_autorizada=hc_final == "Autorizada", fora_escala=item["fora_escala"],
     )
     if excedidas is not None and excedidas != item["excedidas_seg"]:
         payload[S.F["lanc_excedidas"]] = excedidas

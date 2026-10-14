@@ -76,12 +76,12 @@
       <tr class="grupo">
         <td colspan="10">
           <strong>{{ g.funcionario }}</strong>
-          <span class="dica">prontuário {{ g.prontuario }}{% if g.unidade %} · {{ g.unidade }}{% endif %}</span>
+          <span class="dica">prontuário {{ g.prontuario }}{% if g.unidade %} · {{ g.unidade }}{% endif %}{% if g.jornada_horas == 12 %} · plantonista 12x36{% endif %}</span>
         </td>
       </tr>
       {% for i in g.itens %}
       <tr>
-        <td>{{ i.data_br }}</td>
+        <td>{{ i.data_br }}{% if i.fora_escala %} <span class="etiqueta e-neutro" title="Plantão no dia de folga">Folga</span>{% endif %}</td>
         <td class="num">{{ i.entrada_seg | dur }}</td>
         <td class="num">{{ i.saida_seg | dur }}</td>
         <td class="num">{{ i.permanencia_seg | dur }}</td>

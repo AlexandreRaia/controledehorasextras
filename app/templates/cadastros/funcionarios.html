@@ -35,6 +35,13 @@
         {% endfor %}
       </select>
     </div>
+    <div class="campo estreito">
+      <label for="f_jornada">Jornada</label>
+      <select id="f_jornada" name="jornada_horas">
+        <option value="8">8 horas</option>
+        <option value="12">Plantonista 12x36</option>
+      </select>
+    </div>
     <div class="campo checa">
       <input type="checkbox" id="f_ativo" name="ativo" checked>
       <label for="f_ativo">Ativo</label>
@@ -49,7 +56,7 @@
 <div class="cartao tabela-rolagem">
   <table>
     <thead>
-      <tr><th>Prontuário</th><th>Nome</th><th>Cargo</th><th>Unidade</th>
+      <tr><th>Prontuário</th><th>Nome</th><th>Cargo</th><th>Unidade</th><th>Jornada</th>
           <th>Telefone</th><th>Situação</th><th>Ações</th></tr>
     </thead>
     <tbody>
@@ -59,6 +66,7 @@
         <td>{{ f.nome }}</td>
         <td>{{ f.cargo }}</td>
         <td>{{ f.unidade }}</td>
+        <td>{{ 'Plantonista 12x36' if f.jornada_horas == 12 else '8 horas' }}</td>
         <td>{{ f.telefone }}</td>
         <td>
           {% if f.ativo %}<span class="etiqueta e-aprovado">Ativo</span>
@@ -76,7 +84,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" class="vazio">Nenhum funcionário cadastrado.</td></tr>
+      <tr><td colspan="8" class="vazio">Nenhum funcionário cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -90,6 +98,7 @@ function editar(f) {
   document.getElementById('f_telefone').value = f.telefone || '';
   document.getElementById('f_cargo').value = f.cargo || '';
   document.getElementById('f_unidade').value = (f.unidade_ids && f.unidade_ids[0]) || '';
+  document.getElementById('f_jornada').value = f.jornada_horas || 8;
   document.getElementById('f_ativo').checked = !!f.ativo;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -99,6 +108,7 @@ function limpar() {
     document.getElementById(campo).value = '';
   }
   document.getElementById('f_unidade').value = '';
+  document.getElementById('f_jornada').value = '8';
   document.getElementById('f_ativo').checked = true;
 }
 </script>

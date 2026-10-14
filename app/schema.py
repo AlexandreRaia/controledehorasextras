@@ -73,6 +73,14 @@ CREATE TABLE IF NOT EXISTS fechamentos (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS fechamentos_mes_fechado
     ON fechamentos (ano, mes) WHERE reaberto_em IS NULL;
+
+-- Colunas que chegaram depois. ADD COLUMN IF NOT EXISTS atualiza o banco que ja
+-- existe sem mexer nos dados; quem ja era cadastrado fica com jornada de 8 horas.
+ALTER TABLE funcionarios
+    ADD COLUMN IF NOT EXISTS jornada_horas INTEGER NOT NULL DEFAULT 8
+    CHECK (jornada_horas IN (8, 12));
+ALTER TABLE lancamentos
+    ADD COLUMN IF NOT EXISTS fora_escala BOOLEAN NOT NULL DEFAULT FALSE;
 """
 
 # Colunas de lancamentos que as views gravam. As views montam o payload com
@@ -90,6 +98,7 @@ F = {
     "lanc_obs_rh": "obs_rh",
     "lanc_parecer": "parecer_gestor",
     "lanc_unidade": "unidade",
+    "lanc_fora_escala": "fora_escala",
     "lanc_lancado_por": "lancado_por",
     "lanc_lancado_em": "lancado_em",
     "lanc_decidido_por": "decidido_por",

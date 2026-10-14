@@ -26,6 +26,16 @@ class Config:
     ALMOCO_SEGUNDOS = int(float(os.getenv("ALMOCO_HORAS") or 1) * 3600)
     TIMEZONE_OFFSET = _int("TIMEZONE_OFFSET", -3)
 
+    # Plantonista 12x36: jornada de 12 horas, sem hora de almoco a descontar.
+    JORNADA_PLANTAO_HORAS = 12
+
+    @classmethod
+    def parametros_jornada(cls, jornada_horas):
+        """(jornada, almoco) em segundos de quem faz essa jornada diaria."""
+        if jornada_horas == cls.JORNADA_PLANTAO_HORAS:
+            return cls.JORNADA_PLANTAO_HORAS * 3600, 0
+        return cls.JORNADA_PADRAO_SEGUNDOS, cls.ALMOCO_SEGUNDOS
+
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     PERMANENT_SESSION_LIFETIME = 60 * 60 * 10

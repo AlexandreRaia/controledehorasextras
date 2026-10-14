@@ -15,9 +15,9 @@ funcionarios, usuarios e lancamentos.
 
 Duas travas garantem a separação de funções:
 
-- O RH só altera um lançamento enquanto ele está **Pendente**. Depois da decisão
-  do gestor, a tela de edição é bloqueada. Já a exclusão continua liberada ao RH,
-  decidido ou não, até o fechamento do mês.
+- O RH edita e exclui lançamentos até o fechamento do mês, decididos ou não.
+  Editar um lançamento já decidido desfaz a decisão: ele volta para **Pendente**
+  e o gestor decide de novo. O RH nunca grava Aprovado nem Rejeitado.
 - O gestor grava apenas situação, hora corrida, parecer e a trilha de quem
   decidiu. Data, entrada, saída e funcionário nunca entram no payload dele.
 
@@ -50,7 +50,8 @@ tratada como virada de meia-noite.
 
 Da permanência sai a hora de almoço, que nunca conta como hora excedente. O
 desconto não derruba a jornada abaixo do padrão, então quem fica oito horas e
-meia não aparece devendo meia hora. O excedente é o que sobra acima da jornada.
+meia não aparece devendo meia hora. As horas trabalhadas mostram só a jornada
+normal, no máximo 8 horas, e o excedente é o que sobra acima dela.
 
 A hora corrida é a exceção. Ela significa que a pessoa não parou para almoçar.
 O RH marca o pedido no lançamento e o gestor autoriza ou nega. Autorizada, a
@@ -59,12 +60,35 @@ o desconto permanece.
 
 | Entrada | Saída | Permanência | Almoço | Trabalhadas | Excedentes | Com HC |
 |---|---|---|---|---|---|---|
-| 8:00 | 19:30 | 11:30 | 1:00 | 10:30 | 2:30 | 3:30 |
+| 8:00 | 19:00 | 11:00 | 1:00 | 8:00 | 2:00 | 3:00 |
+| 8:00 | 19:30 | 11:30 | 1:00 | 8:00 | 2:30 | 3:30 |
 | 8:00 | 16:30 | 8:30 | 0:30 | 8:00 | 0:00 | 0:30 |
 | 8:00 | 12:00 | 4:00 | 0:00 | 4:00 | 0:00 | 0:00 |
 
 A jornada e o almoço são configuráveis em `JORNADA_PADRAO_HORAS` e
 `ALMOCO_HORAS`, iguais a 8 e 1 por padrão.
+
+### Plantonista 12x36
+
+Cada funcionário tem uma **Jornada** no cadastro: 8 horas ou plantonista 12x36.
+O plantonista trabalha 12 horas e folga 36, então o lançamento continua sendo
+um por dia trabalhado, sem somar "um dia e meio".
+
+- A jornada dele é de 12 horas e **não há hora de almoço** a descontar. Também
+  não existe hora corrida para ele.
+- O excedente é o que passa de 12 horas no plantão.
+- Plantão feito no **dia de folga** (fora da escala) conta inteiro como excedente.
+  O RH marca "Plantão no dia de folga" no lançamento. O sistema não deduz a folga
+  sozinho, porque a escala pode ser trocada entre colegas.
+
+| Entrada | Saída | Permanência | Trabalhadas | Excedentes |
+|---|---|---|---|---|
+| 7:00 | 19:00 | 12:00 | 12:00 | 0:00 |
+| 7:00 | 20:30 | 13:30 | 12:00 | 1:30 |
+| 7:00 | 19:00, na folga | 12:00 | 0:00 | 12:00 |
+
+A jornada vale para todos os lançamentos do funcionário, inclusive os antigos:
+mudar o cadastro recalcula o histórico. Quem já estava cadastrado fica com 8 horas.
 
 Como o excedente depende da hora corrida, a decisão do gestor regrava a coluna
 `excedidas_seg`. Essa é a única hora que ele move, e apenas como consequência
