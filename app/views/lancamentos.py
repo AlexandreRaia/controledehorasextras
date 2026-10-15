@@ -38,6 +38,22 @@ def _periodo_do_pedido():
     return ano, mes, inicio, fim
 
 
+LIMITE_EXCEDENTE_SEG = 20 * 3600
+
+
+def _le_excedente(bruto, erros):
+    """Excedente digitado em H:MM (aceita sinal de menos), ou None se em branco."""
+    texto = (bruto or "").strip()
+    if not texto:
+        return None
+    valor = parse_duration(texto)
+    if valor is None:
+        erros.append("Excedente no formato H:MM; para horas negativas use -0:30.")
+    elif abs(valor) > LIMITE_EXCEDENTE_SEG:
+        erros.append("Excedente fora do limite de 20 horas, para mais ou para menos.")
+    return valor
+
+
 def _monta_payload(form, funcionario):
     """Valida o formulario e devolve (payload, erros)."""
     erros = []
@@ -65,6 +81,17 @@ def _monta_payload(form, funcionario):
 
     # Quem nao tem hora de almoco a descontar nao tem hora corrida a pedir.
     hc = bool(form.get("hc_solicitada")) and almoco > 0
+    obs = (form.get("obs_rh") or "").strip()
+
+    # O RH pode digitar o excedente no lugar do calculado, inclusive negativo.
+    # Valor igual ao calculado nao e ajuste; ajuste exige o motivo na observacao.
+    manual = _le_excedente(form.get("excedente"), erros)
+    if manual is not None and excedidas is not None and manual == excedidas:
+        manual = None
+    if manual is not None:
+        if not obs:
+            erros.append("Informe o motivo do ajuste na Observacao do RH.")
+        excedidas = manual
     usuario = usuario_atual()
     payload = {
         S.F["lanc_data"]: data_iso,
@@ -73,9 +100,10 @@ def _monta_payload(form, funcionario):
         S.F["lanc_entrada"]: entrada,
         S.F["lanc_saida"]: saida,
         S.F["lanc_excedidas"]: excedidas,
+        S.F["lanc_excedidas_manual"]: manual,
         S.F["lanc_unidade"]: funcionario["unidade"],
         S.F["lanc_fora_escala"]: fora_escala,
-        S.F["lanc_obs_rh"]: (form.get("obs_rh") or "").strip(),
+        S.F["lanc_obs_rh"]: obs,
         S.F["lanc_hc_solicitada"]: hc,
         S.F["lanc_lancado_por"]: usuario["nome"] if usuario else "",
         S.F["lanc_lancado_em"]: iso_now_utc(),
@@ -232,6 +260,7 @@ def editar(row_id):
         "obs_rh": item["obs_rh"],
         "hc_solicitada": item["hc_solicitada"],
         "fora_escala": item["fora_escala"],
+        "excedente": format_duration(item["excedidas_seg"]) if item["ajustado"] else "",
     }
     return render_template(
         "lancamentos/form.html", funcionarios=funcionarios,

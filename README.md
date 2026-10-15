@@ -68,6 +68,29 @@ o desconto permanece.
 A jornada e o almoço são configuráveis em `JORNADA_PADRAO_HORAS` e
 `ALMOCO_HORAS`, iguais a 8 e 1 por padrão.
 
+### Ajuste do excedente pelo RH
+
+O sistema calcula o excedente sozinho, mas existem situações que ele não prevê.
+No lançamento, o campo **Excedente (H:MM)** permite ao RH digitar o valor:
+
+- **Em branco:** vale o cálculo. Na edição aparece "Calculado agora: ...".
+- **Preenchido:** vale no lugar do cálculo e aceita valor **negativo**
+  (por exemplo `-0:30`), para horas a compensar ou descontar. O limite é de
+  20 horas, para mais ou para menos.
+- **Motivo obrigatório:** o RH precisa preencher a Observação do RH.
+- **Voltar ao cálculo:** apagar o campo e salvar. Digitar o mesmo valor que o
+  sistema calculou também não conta como ajuste.
+
+Cada lançamento guarda os dois valores: `excedidas_manual_seg` (o digitado, nulo
+sem ajuste) e `excedidas_seg` (o que está em vigor). Listas, relatório e análise
+mostram a etiqueta **Ajustado**, com o valor calculado e o motivo, e o CSV traz as
+colunas "Excedente calculado" e "Ajustado pelo RH".
+
+Valem as regras de sempre: editar devolve o lançamento ao gestor, e mês fechado
+bloqueia tudo. A decisão do gestor sobre a hora corrida **não regrava** um
+excedente ajustado. Um excedente diferente de zero, positivo ou negativo, exige
+decisão do gestor antes do fechamento do mês.
+
 ### Plantonista 12x36
 
 Cada funcionário tem uma **Jornada** no cadastro: 8 horas ou plantonista 12x36.

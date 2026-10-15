@@ -81,6 +81,10 @@ ALTER TABLE funcionarios
     CHECK (jornada_horas IN (8, 12));
 ALTER TABLE lancamentos
     ADD COLUMN IF NOT EXISTS fora_escala BOOLEAN NOT NULL DEFAULT FALSE;
+-- Excedente digitado pelo RH. Nulo significa "usar o calculado"; excedidas_seg
+-- guarda sempre o valor em vigor, manual ou calculado.
+ALTER TABLE lancamentos
+    ADD COLUMN IF NOT EXISTS excedidas_manual_seg INTEGER;
 """
 
 # Colunas de lancamentos que as views gravam. As views montam o payload com
@@ -92,6 +96,7 @@ F = {
     "lanc_entrada": "entrada_seg",
     "lanc_saida": "saida_seg",
     "lanc_excedidas": "excedidas_seg",
+    "lanc_excedidas_manual": "excedidas_manual_seg",
     "lanc_status": "status",
     "lanc_hc_solicitada": "hc_solicitada",
     "lanc_hc_status": "hc_status",

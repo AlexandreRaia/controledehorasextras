@@ -87,7 +87,7 @@
         <td class="num">{{ i.permanencia_seg | dur }}</td>
         <td class="num">{{ i.almoco_seg | dur }}</td>
         <td class="num">{{ i.trabalhadas_seg | dur }}</td>
-        <td class="num">{{ i.excedidas_seg | dur }}</td>
+        <td class="num">{{ i.excedidas_seg | dur }}{{ m.marca_ajuste(i) }}</td>
         <td>{{ m.etiqueta_status(i.status) }}</td>
         <td>{{ m.etiqueta_hc(i) }}</td>
         <td>{{ i.parecer }}</td>

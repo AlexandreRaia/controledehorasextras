@@ -53,7 +53,8 @@ def _grava_decisao(repo, item, status=None, hc_decisao=None, parecer=None):
         item["entrada_seg"], item["saida_seg"], jornada, almoco,
         hc_autorizada=hc_final == "Autorizada", fora_escala=item["fora_escala"],
     )
-    if excedidas is not None and excedidas != item["excedidas_seg"]:
+    # O excedente digitado pelo RH vale no lugar do calculado: nao se regrava.
+    if not item["ajustado"] and excedidas is not None and excedidas != item["excedidas_seg"]:
         payload[S.F["lanc_excedidas"]] = excedidas
     repo.lancamento_atualizar(item["id"], payload)
 
@@ -96,7 +97,7 @@ def listar():
         i["fechado"] = bool(fechamento)
     # Sem horas excedentes e sem HC nao ha o que decidir.
     relevantes = [
-        i for i in itens if (i["excedidas_seg"] or 0) > 0 or i["hc_solicitada"]
+        i for i in itens if (i["excedidas_seg"] or 0) != 0 or i["hc_solicitada"]
     ]
     somente_relevantes = request.args.get("todos") != "1"
     mostrados = relevantes if somente_relevantes else itens

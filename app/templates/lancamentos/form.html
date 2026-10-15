@@ -56,8 +56,25 @@
   </div>
 
   <div class="linha">
+    <div class="campo estreito">
+      <label for="excedente">Excedente (H:MM)</label>
+      <input type="text" id="excedente" name="excedente" placeholder="automático"
+             value="{{ form.get('excedente') or '' }}">
+    </div>
     <div class="campo">
-      <label for="obs_rh">Observação do RH</label>
+      <p class="dica">
+        Em branco, o sistema calcula o excedente.
+        {% if item %}Calculado agora: <strong>{{ item.excedidas_calc_seg | dur }}</strong>.{% endif %}
+        Preencha só para ajustar: vale no lugar do cálculo, aceita valor negativo
+        (por exemplo <code>-0:30</code>) e exige o motivo na observação abaixo.
+        Para voltar ao cálculo, apague o campo e salve.
+      </p>
+    </div>
+  </div>
+
+  <div class="linha">
+    <div class="campo">
+      <label for="obs_rh">Observação do RH (obrigatória ao ajustar o excedente)</label>
       <textarea id="obs_rh" name="obs_rh">{{ form.get('obs_rh') or '' }}</textarea>
     </div>
   </div>

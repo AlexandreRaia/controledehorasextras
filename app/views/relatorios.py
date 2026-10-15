@@ -88,6 +88,7 @@ def consolidado_csv():
         "Horas excedidas", "Excedidas (decimal)",
         "Status", "HC solicitada", "HC status", "Lancado por", "Decidido por",
         "Parecer do gestor", "Jornada (h)", "Plantao fora da escala",
+        "Excedente calculado", "Ajustado pelo RH",
     ])
     for i in itens:
         escritor.writerow([
@@ -99,6 +100,7 @@ def consolidado_csv():
             i["status"], "Sim" if i["hc_solicitada"] else "Nao", i["hc_status"],
             i["lancado_por"], i["decidido_por"], i["parecer"],
             i["jornada_horas"], "Sim" if i["fora_escala"] else "Nao",
+            format_duration(i["excedidas_calc_seg"]), "Sim" if i["ajustado"] else "Nao",
         ])
 
     nome = f"horas-extras-{ano}-{mes:02d}.csv"

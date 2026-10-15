@@ -43,7 +43,16 @@
     </div>
   </div>
 
-  {% if item.hc_solicitada %}
+  {% if item.ajustado %}
+  <p class="destaque">
+    O RH ajustou o excedente: o sistema calculou
+    <strong>{{ item.excedidas_calc_seg | dur }}</strong> e ele registrou
+    <strong>{{ item.excedidas_seg | dur }}</strong>.
+    Motivo: {{ item.obs_rh }}
+  </p>
+  {% endif %}
+
+  {% if item.hc_solicitada and not item.ajustado %}
   <p class="destaque">
     O RH registrou que a pessoa não parou para almoçar.
     Autorizando a hora corrida, o excedente passa de

@@ -74,7 +74,7 @@
         <td class="num">{{ i.permanencia_seg | dur }}</td>
         <td class="num">{{ i.almoco_seg | dur }}</td>
         <td class="num">{{ i.trabalhadas_seg | dur }}</td>
-        <td class="num">{{ i.excedidas_seg | dur }}</td>
+        <td class="num">{{ i.excedidas_seg | dur }}{{ m.marca_ajuste(i) }}</td>
         <td class="num">
           {%- if i.excedidas_com_hc_seg != i.excedidas_seg -%}
             {{ i.excedidas_com_hc_seg | dur }}

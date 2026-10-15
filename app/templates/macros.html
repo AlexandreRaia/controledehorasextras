@@ -26,6 +26,12 @@
   {%- endif %}</svg>
 {%- endmacro %}
 
+{# Excedente digitado pelo RH no lugar do calculado; a dica mostra os dois valores. #}
+{% macro marca_ajuste(item) -%}
+  {% if item.ajustado %} <span class="etiqueta e-neutro"
+    title="Calculado {{ item.excedidas_calc_seg | dur }}; ajustado pelo RH. Motivo: {{ item.obs_rh }}">Ajustado</span>{% endif %}
+{%- endmacro %}
+
 {% macro etiqueta_status(status) %}
   {% if status == 'Aprovado' %}<span class="etiqueta e-aprovado">{{ icone('ok') }}Aprovado</span>
   {% elif status == 'Rejeitado' %}<span class="etiqueta e-rejeitado">{{ icone('nao') }}Rejeitado</span>

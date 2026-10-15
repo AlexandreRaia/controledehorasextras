@@ -190,6 +190,7 @@ class RepoFalso:
             "status": status, "hc_solicitada": True, "hc_status": "Pendente",
             "obs_rh": "", "parecer": "", "unidade": "Detran",
             "jornada_horas": 8, "fora_escala": False,
+            "ajustado": False, "excedidas_calc_seg": exced,
             "lancado_por": "Flavio Galisteu", "lancado_em": "01/10/2026 18:00",
             "decidido_por": "", "decidido_em": "",
         }
@@ -257,7 +258,7 @@ class RepoFalso:
             if not i["data"].startswith(str(ano)):
                 continue
             pendente = (i["status"] == "Pendente"
-                        and ((i["excedidas_seg"] or 0) > 0 or i["hc_solicitada"])) \
+                        and ((i["excedidas_seg"] or 0) != 0 or i["hc_solicitada"])) \
                 or (i["hc_solicitada"] and i["hc_status"] == "Pendente")
             if pendente:
                 mes = int(i["data"][5:7])
@@ -370,6 +371,97 @@ class TestPermissoes(BaseWeb):
             self.assertEqual(self.cliente.get(rota).status_code, 200, rota)
         self.assertEqual(self.cliente.get("/aprovacoes/").status_code, 403)
         self.assertEqual(self.cliente.get("/lancamentos/novo").status_code, 403)
+
+
+class TestAjusteDoExcedente(BaseWeb):
+    # 8:00 as 19:00 de um funcionario de 8h: calculado 2:00 (sem hora corrida).
+    BASE = {"data": "2026-10-05", "funcionario_id": "1", "entrada": "8:00", "saida": "19:00"}
+
+    def envia(self, rota="/lancamentos/novo", **extra):
+        self.entrar("flavio")
+        return self.cliente.post(rota, data={**self.BASE, **extra}, follow_redirects=True)
+
+    def gravado(self):
+        return self.repo.gravacoes[-1][-1]
+
+    def test_em_branco_usa_o_calculo(self):
+        self.envia()
+        payload = self.gravado()
+        self.assertEqual(payload[S.F["lanc_excedidas"]], 2 * 3600)
+        self.assertIsNone(payload[S.F["lanc_excedidas_manual"]])
+
+    def test_valor_digitado_vale_no_lugar_do_calculo(self):
+        self.envia(excedente="1:30", obs_rh="saiu mais cedo para consulta")
+        payload = self.gravado()
+        self.assertEqual(payload[S.F["lanc_excedidas_manual"]], 90 * 60)
+        self.assertEqual(payload[S.F["lanc_excedidas"]], 90 * 60)
+
+    def test_aceita_horas_negativas(self):
+        self.envia(excedente="-0:30", obs_rh="compensar na proxima semana")
+        payload = self.gravado()
+        self.assertEqual(payload[S.F["lanc_excedidas_manual"]], -30 * 60)
+        self.assertEqual(payload[S.F["lanc_excedidas"]], -30 * 60)
+
+    def test_ajuste_exige_o_motivo(self):
+        resposta = self.envia(excedente="1:00")
+        self.assertIn("motivo do ajuste", resposta.get_data(as_text=True))
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_valor_igual_ao_calculado_nao_e_ajuste_e_nao_exige_motivo(self):
+        self.envia(excedente="2:00")
+        self.assertIsNone(self.gravado()[S.F["lanc_excedidas_manual"]])
+
+    def test_formato_invalido_e_limite(self):
+        for ruim in ("abc", "25:00", "-21:00"):
+            self.repo.gravacoes.clear()
+            self.envia(excedente=ruim, obs_rh="x")
+            self.assertEqual(self.repo.gravacoes, [], ruim)
+
+    def test_editar_pode_voltar_ao_calculo(self):
+        self.envia("/lancamentos/100/editar", excedente="", obs_rh="")
+        self.assertIsNone(self.gravado()[S.F["lanc_excedidas_manual"]])
+
+    def test_ajuste_em_mes_fechado_e_barrado(self):
+        self.repo._fechamentos.append({
+            "id": 1, "ano": 2026, "mes": 10, "fechado_por": "Fernando Cruz",
+            "fechado_em": "11/10/2026 10:00", "reaberto_por": "", "reaberto_em": "",
+            "motivo": "",
+        })
+        self.envia("/lancamentos/100/editar", excedente="1:00", obs_rh="x")
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_gestor_nao_apaga_o_ajuste_ao_decidir_a_hora_corrida(self):
+        self.repo._lancamentos[100].update(
+            ajustado=True, excedidas_seg=90 * 60, excedidas_calc_seg=2 * 3600)
+        self.entrar("fernando")
+        self.cliente.post("/aprovacoes/100/hc", data={"valor": "Autorizada"})
+        self.assertNotIn(S.F["lanc_excedidas"], self.gravado())
+
+    def test_lista_e_analise_mostram_o_ajuste(self):
+        self.repo._lancamentos[100].update(
+            ajustado=True, excedidas_seg=-30 * 60, excedidas_calc_seg=2 * 3600,
+            obs_rh="compensar")
+        self.entrar("fernando")
+        self.assertIn("Ajustado", self.cliente.get("/aprovacoes/?status=").get_data(as_text=True))
+        html = self.cliente.get("/aprovacoes/100").get_data(as_text=True)
+        self.assertIn("O RH ajustou o excedente", html)
+        self.assertIn("compensar", html)
+
+    def test_valor_negativo_ainda_exige_decisao(self):
+        lanc = self.repo._lancamentos[100]
+        lanc.update(hc_solicitada=False, hc_status="Nao solicitada", excedidas_seg=-30 * 60)
+        self.repo._lancamentos = {100: lanc}
+        self.assertEqual(self.repo.pendencias_do_ano(2026), {10: 1})
+        lanc["excedidas_seg"] = 0
+        self.assertEqual(self.repo.pendencias_do_ano(2026), {})
+
+    def test_csv_traz_calculado_e_ajustado(self):
+        self.repo._lancamentos[100].update(
+            ajustado=True, excedidas_seg=60 * 60, excedidas_calc_seg=2 * 3600)
+        self.entrar("veridiana")
+        csv = self.cliente.get("/relatorios/csv").get_data(as_text=True)
+        self.assertIn("Excedente calculado;Ajustado pelo RH", csv)
+        self.assertIn("2:00;Sim", csv)
 
 
 class TestPlantonista(BaseWeb):

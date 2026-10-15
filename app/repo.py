@@ -12,9 +12,9 @@ from .utils import (
 )
 
 # Lancamento que ainda exige uma decisao do gestor: horas excedentes sem
-# decisao, ou hora corrida pedida e ainda sem resposta.
+# decisao (positivas ou negativas), ou hora corrida pedida e ainda sem resposta.
 SQL_PENDENTE = """
-    ((status = 'Pendente' AND (COALESCE(excedidas_seg, 0) > 0 OR hc_solicitada))
+    ((status = 'Pendente' AND (COALESCE(excedidas_seg, 0) <> 0 OR hc_solicitada))
      OR (hc_solicitada AND hc_status = 'Pendente'))
 """
 
@@ -186,7 +186,7 @@ class Repo:
         hc_status = r["hc_status"]
         fora_escala = bool(r["fora_escala"])
         jornada, almoco_cfg = self.config.parametros_jornada(r["jornada_horas"])
-        permanencia, almoco, trabalhadas, excedidas = calcula_jornada(
+        permanencia, almoco, trabalhadas, excedidas_calc = calcula_jornada(
             entrada, saida, jornada, almoco_cfg,
             hc_autorizada=hc_status == "Autorizada", fora_escala=fora_escala,
         )
@@ -195,6 +195,13 @@ class Repo:
             entrada, saida, jornada, almoco_cfg,
             hc_autorizada=True, fora_escala=fora_escala,
         )
+        # O RH pode digitar o excedente; ai ele vale no lugar do calculado e a
+        # hora corrida deixa de mexer nele.
+        manual = r["excedidas_manual_seg"]
+        ajustado = manual is not None
+        excedidas = manual if ajustado else excedidas_calc
+        if ajustado:
+            excedidas_com_hc = manual
         data_iso = _iso(r["data"])
         return {
             "id": r["id"],
@@ -211,6 +218,8 @@ class Repo:
             "almoco_seg": almoco,
             "trabalhadas_seg": trabalhadas,
             "excedidas_seg": excedidas,
+            "excedidas_calc_seg": excedidas_calc,
+            "ajustado": ajustado,
             "excedidas_com_hc_seg": excedidas_com_hc,
             "status": r["status"],
             "hc_solicitada": r["hc_solicitada"],
