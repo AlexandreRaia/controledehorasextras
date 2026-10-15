@@ -186,11 +186,18 @@ class Repo:
         hc_status = r["hc_status"]
         fora_escala = bool(r["fora_escala"])
         jornada, almoco_cfg = self.config.parametros_jornada(r["jornada_horas"])
+        # A hora corrida pedida ja conta desde o lancamento; so a negativa do
+        # gestor devolve o desconto do almoco.
+        hc_vale = bool(r["hc_solicitada"]) and hc_status != "Negada"
         permanencia, almoco, trabalhadas, excedidas_calc = calcula_jornada(
             entrada, saida, jornada, almoco_cfg,
-            hc_autorizada=hc_status == "Autorizada", fora_escala=fora_escala,
+            hc_autorizada=hc_vale, fora_escala=fora_escala,
         )
-        # Quanto o excedente viraria se o gestor autorizasse a hora corrida.
+        # Quanto o excedente ficaria se o gestor negasse a hora corrida.
+        _, _, _, excedidas_sem_hc = calcula_jornada(
+            entrada, saida, jornada, almoco_cfg,
+            hc_autorizada=False, fora_escala=fora_escala,
+        )
         _, _, _, excedidas_com_hc = calcula_jornada(
             entrada, saida, jornada, almoco_cfg,
             hc_autorizada=True, fora_escala=fora_escala,
@@ -201,7 +208,7 @@ class Repo:
         ajustado = manual is not None
         excedidas = manual if ajustado else excedidas_calc
         if ajustado:
-            excedidas_com_hc = manual
+            excedidas_sem_hc = excedidas_com_hc = manual
         data_iso = _iso(r["data"])
         return {
             "id": r["id"],
@@ -220,6 +227,7 @@ class Repo:
             "excedidas_seg": excedidas,
             "excedidas_calc_seg": excedidas_calc,
             "ajustado": ajustado,
+            "excedidas_sem_hc_seg": excedidas_sem_hc,
             "excedidas_com_hc_seg": excedidas_com_hc,
             "status": r["status"],
             "hc_solicitada": r["hc_solicitada"],

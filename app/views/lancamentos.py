@@ -68,19 +68,19 @@ def _monta_payload(form, funcionario):
     if saida is None:
         erros.append("Informe a saida no formato H:MM.")
 
-    # A hora corrida ainda nao foi decidida pelo gestor, entao o excedente
-    # nasce com o almoco descontado. A decisao dele recalcula depois.
+    # Quem nao tem hora de almoco a descontar nao tem hora corrida a pedir.
+    # A hora corrida pedida ja conta no excedente; se o gestor negar, o calculo
+    # e refeito com o almoco descontado.
     jornada, almoco = Config.parametros_jornada(funcionario["jornada_horas"])
+    hc = bool(form.get("hc_solicitada")) and almoco > 0
     plantonista = funcionario["jornada_horas"] == Config.JORNADA_PLANTAO_HORAS
     fora_escala = plantonista and bool(form.get("fora_escala"))
     permanencia, _, trabalhadas, excedidas = calcula_jornada(
-        entrada, saida, jornada, almoco, fora_escala=fora_escala
+        entrada, saida, jornada, almoco, hc_autorizada=hc, fora_escala=fora_escala
     )
     if permanencia is not None and permanencia > 20 * 3600:
         erros.append("Permanencia maior que 20 horas. Confira entrada e saida.")
 
-    # Quem nao tem hora de almoco a descontar nao tem hora corrida a pedir.
-    hc = bool(form.get("hc_solicitada")) and almoco > 0
     obs = (form.get("obs_rh") or "").strip()
 
     # O RH pode digitar o excedente no lugar do calculado, inclusive negativo.

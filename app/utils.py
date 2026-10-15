@@ -64,7 +64,7 @@ def calcula_jornada(entrada_seg, saida_seg, jornada_padrao, almoco=0,
 
     A permanencia e a diferenca entre saida e entrada, virando a meia-noite
     quando a saida e menor. Dela sai a hora de almoco, que nunca conta como
-    excedente, salvo quando o gestor autoriza a hora corrida: ai o funcionario
+    excedente, salvo quando ha hora corrida (pedida pelo RH e nao negada pelo gestor): ai o funcionario
     nao almocou e essa hora entra no excedente.
 
     O desconto nunca derruba a jornada abaixo do padrao, entao quem fica 8:30

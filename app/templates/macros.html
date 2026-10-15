@@ -77,9 +77,9 @@
 {% macro decidir_hc(item, voltar) %}
   {% set rota = 'aprovacoes.decidir_hc' %}
   {% set autorizar = botao_decisao(rota, item, voltar, 'Autorizada', 'Autorizar', 'ok',
-                                   'Autorizar a hora corrida: não almoçou, a hora conta como excedente') %}
+                                   'Autorizar a hora corrida: não almoçou, a hora conta como excedente (já conta desde o lançamento)') %}
   {% set negar = botao_decisao(rota, item, voltar, 'Negada', 'Negar', 'perigo',
-                               'Negar a hora corrida: a hora de almoço continua descontada') %}
+                               'Negar a hora corrida: a hora de almoço volta a ser descontada') %}
   <div class="decisao">
     {% if not item.hc_solicitada or item.fechado %}
       {{ etiqueta_hc(item) }}

@@ -54,16 +54,19 @@ meia não aparece devendo meia hora. As horas trabalhadas mostram só a jornada
 normal, no máximo 8 horas, e o excedente é o que sobra acima dela.
 
 A hora corrida é a exceção. Ela significa que a pessoa não parou para almoçar.
-O RH marca o pedido no lançamento e o gestor autoriza ou nega. Autorizada, a
-hora do almoço deixa de ser descontada e passa a contar como excedente. Negada,
-o desconto permanece.
+O RH marca o pedido no lançamento e **ela já vale desde aquele momento**: a hora
+do almoço deixa de ser descontada e entra no excedente sem esperar o gestor. O
+gestor ainda autoriza ou nega. Autorizada, nada muda. Negada, o sistema refaz o
+cálculo e o desconto do almoço volta. Pendente e autorizada contam igual; só a
+negativa devolve o desconto.
 
-| Entrada | Saída | Permanência | Almoço | Trabalhadas | Excedentes | Com HC |
+| Entrada | Saída | Permanência | Almoço | Trabalhadas | Excedentes | Sem HC (se negada) |
 |---|---|---|---|---|---|---|
-| 8:00 | 19:00 | 11:00 | 1:00 | 8:00 | 2:00 | 3:00 |
-| 8:00 | 19:30 | 11:30 | 1:00 | 8:00 | 2:30 | 3:30 |
-| 8:00 | 16:30 | 8:30 | 0:30 | 8:00 | 0:00 | 0:30 |
-| 8:00 | 12:00 | 4:00 | 0:00 | 4:00 | 0:00 | 0:00 |
+| 8:00 | 19:00, com HC | 11:00 | 0:00 | 8:00 | 3:00 | 2:00 |
+| 8:00 | 19:00, sem HC | 11:00 | 1:00 | 8:00 | 2:00 | 2:00 |
+| 8:00 | 19:30, com HC | 11:30 | 0:00 | 8:00 | 3:30 | 2:30 |
+| 8:00 | 16:30, sem HC | 8:30 | 0:30 | 8:00 | 0:00 | 0:00 |
+| 8:00 | 12:00, sem HC | 4:00 | 0:00 | 4:00 | 0:00 | 0:00 |
 
 A jornada e o almoço são configuráveis em `JORNADA_PADRAO_HORAS` e
 `ALMOCO_HORAS`, iguais a 8 e 1 por padrão.
@@ -113,9 +116,10 @@ um por dia trabalhado, sem somar "um dia e meio".
 A jornada vale para todos os lançamentos do funcionário, inclusive os antigos:
 mudar o cadastro recalcula o histórico. Quem já estava cadastrado fica com 8 horas.
 
-Como o excedente depende da hora corrida, a decisão do gestor regrava a coluna
-`excedidas_seg`. Essa é a única hora que ele move, e apenas como consequência
-da própria decisão. Entrada, saída, data e funcionário continuam intocados.
+Como o excedente depende da hora corrida, negá-la regrava a coluna
+`excedidas_seg`. Essa é a única hora que o gestor move, e apenas como
+consequência da própria decisão. Entrada, saída, data e funcionário continuam
+intocados.
 
 ## Instalação
 
@@ -188,9 +192,9 @@ aprovações e os demais perfis para a lista de lançamentos.
   botões Aprovar e Reprovar para as horas excedentes e Autorizar e Negar para
   a hora corrida, que só aparecem quando o RH pediu. Um clique grava no banco
   na hora. A coluna
-  Com HC mostra no que o excedente ficaria se a hora corrida fosse autorizada.
+  Sem HC mostra no que o excedente ficaria se a hora corrida fosse negada.
   Os mesmos botões aparecem na lista de Lançamentos quando quem olha é o
-  gestor. Há também decisão em lote para resolver vários dias de uma vez.
+  gestor. A decisão é sempre dia a dia, não há aprovação em lote.
 - **Relatórios**: consolidado por funcionário, detalhe dia a dia e exportação
   em CSV separado por ponto e vírgula, pronto para o Excel.
 - **Fechamento**: situação dos doze meses do ano, com o que ainda espera

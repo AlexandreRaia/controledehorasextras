@@ -7,8 +7,9 @@
 <h1>Aprovações</h1>
 <p class="sub">
   Cada botão grava na hora. Aprovar ou reprovar decide as horas excedentes.
-  Autorizar a hora corrida significa que a pessoa não almoçou e aquela hora passa
-  a contar como excedente. Para mudar uma decisão já tomada, use "alterar".
+  A hora corrida pedida pelo RH já conta como excedente; negá-la devolve o
+  desconto do almoço e o cálculo é refeito. Para mudar uma decisão já tomada,
+  use "alterar".
 </p>
 
 {{ m.faixa_fechado(fechamento) }}
@@ -47,12 +48,10 @@
   <table>
     <thead>
       <tr>
-        <th><input type="checkbox" form="lote" title="Marcar todos"
-                   onclick="for (const c of this.closest('table').querySelectorAll('tbody input[type=checkbox]')) c.checked = this.checked;"></th>
         <th>Data</th>
         <th class="num">Permanência</th><th class="num">Almoço</th>
         <th class="num">Trabalhadas</th><th class="num">Excedentes</th>
-        <th class="num">Com HC</th>
+        <th class="num" title="Excedente se a hora corrida for negada">Sem HC</th>
         <th>Hora corrida</th><th>Horas excedentes</th>
         <th>Decidido por</th><th></th>
       </tr>
@@ -61,7 +60,6 @@
     <tbody id="g-{{ g.chave | ident }}" hx-target="this" hx-swap="outerHTML"
            hx-select="#g-{{ g.chave | ident }}" hx-select-oob="#avisos,#total-geral">
       <tr class="grupo">
-        <td></td>
         <td colspan="10">
           <strong>{{ g.funcionario }}</strong>
           <span class="dica">prontuário {{ g.prontuario }}{% if g.unidade %} · {{ g.unidade }}{% endif %}{% if g.jornada_horas == 12 %} · plantonista 12x36{% endif %}</span>
@@ -69,15 +67,14 @@
       </tr>
       {% for i in g.itens %}
       <tr>
-        <td>{% if not i.fechado %}<input type="checkbox" form="lote" name="selecionados" value="{{ i.id }}">{% endif %}</td>
         <td>{{ i.data_br }}{% if i.fora_escala %} <span class="etiqueta e-neutro" title="Plantão no dia de folga">Folga</span>{% endif %}</td>
         <td class="num">{{ i.permanencia_seg | dur }}</td>
         <td class="num">{{ i.almoco_seg | dur }}</td>
         <td class="num">{{ i.trabalhadas_seg | dur }}</td>
         <td class="num">{{ i.excedidas_seg | dur }}{{ m.marca_ajuste(i) }}</td>
         <td class="num">
-          {%- if i.excedidas_com_hc_seg != i.excedidas_seg -%}
-            {{ i.excedidas_com_hc_seg | dur }}
+          {%- if i.excedidas_sem_hc_seg != i.excedidas_seg -%}
+            {{ i.excedidas_sem_hc_seg | dur }}
           {%- else -%}<span class="dica">—</span>{%- endif -%}
         </td>
         <td>
@@ -91,7 +88,6 @@
       </tr>
       {% endfor %}
       <tr class="subtotal">
-        <td></td>
         <td>Subtotal · {{ g.dias }} dia{{ 's' if g.dias != 1 }}</td>
         <td class="num">{{ g.permanencia | dur }}</td>
         <td class="num">{{ g.almoco | dur }}</td>
@@ -108,13 +104,13 @@
     </tbody>
     {% else %}
     <tbody>
-      <tr><td colspan="11" class="vazio">Nada a decidir neste filtro.</td></tr>
+      <tr><td colspan="10" class="vazio">Nada a decidir neste filtro.</td></tr>
     </tbody>
     {% endfor %}
     <tfoot id="total-geral">
     {% if grupos %}
       <tr>
-        <td colspan="5">Total geral de {{ grupos | length }} funcionário(s)</td>
+        <td colspan="4">Total geral de {{ grupos | length }} funcionário(s)</td>
         <td class="num">{{ total_excedido | dur }}</td>
         <td colspan="5"></td>
       </tr>
@@ -122,28 +118,4 @@
     </tfoot>
   </table>
 </div>
-
-{% if grupos %}
-<form class="cartao" id="lote" method="post" action="{{ url_for('aprovacoes.lote') }}">
-  <input type="hidden" name="voltar" value="{{ voltar }}">
-  <h2>Decisão em lote</h2>
-  <p class="dica">
-    Para resolver vários dias de uma vez, marque as caixas da primeira coluna.
-  </p>
-  <div class="linha">
-    <div class="campo">
-      <label for="parecer">Parecer (obrigatório para rejeitar)</label>
-      <textarea id="parecer" name="parecer"></textarea>
-    </div>
-  </div>
-  <div class="acoes">
-    <button class="botao ok" type="submit" name="decisao" value="Aprovado">Aprovar selecionados</button>
-    <button class="botao perigo" type="submit" name="decisao" value="Rejeitado">Rejeitar selecionados</button>
-  </div>
-  <p class="dica">
-    Na aprovação em lote a hora corrida pedida é autorizada junto, e na rejeição
-    é negada. Para separar as duas decisões, use os botões da linha.
-  </p>
-</form>
-{% endif %}
 {% endblock %}

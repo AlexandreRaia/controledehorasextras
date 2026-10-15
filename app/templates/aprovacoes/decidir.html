@@ -54,11 +54,12 @@
 
   {% if item.hc_solicitada and not item.ajustado %}
   <p class="destaque">
-    O RH registrou que a pessoa não parou para almoçar.
-    Autorizando a hora corrida, o excedente passa de
-    <strong>{{ item.excedidas_seg | dur }}</strong> para
+    O RH registrou que a pessoa não parou para almoçar, e o excedente já
+    considera a hora corrida: <strong>{{ item.excedidas_seg | dur }}</strong>.
+    {% if item.hc_status == 'Negada' %}A hora corrida foi negada; autorizando, ele passa a
     <strong>{{ item.excedidas_com_hc_seg | dur }}</strong>.
-    Negando, ele fica em {{ item.excedidas_seg | dur }}.
+    {% else %}Negando, o almoço volta a ser descontado e ele passa para
+    <strong>{{ item.excedidas_sem_hc_seg | dur }}</strong>.{% endif %}
   </p>
   {% endif %}
 
@@ -78,7 +79,7 @@
       <select id="hc_decisao" name="hc_decisao">
         <option value="Autorizada" {% if item.hc_status == 'Autorizada' %}selected{% endif %}>Autorizar</option>
         <option value="Negada" {% if item.hc_status == 'Negada' %}selected{% endif %}>Negar</option>
-        <option value="Pendente" {% if item.hc_status == 'Pendente' %}selected{% endif %}>Deixar pendente</option>
+        <option value="Pendente" {% if item.hc_status == 'Pendente' %}selected{% endif %}>Deixar pendente (vale como autorizada)</option>
       </select>
     </div>
   </div>

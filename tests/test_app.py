@@ -2,6 +2,7 @@
 import os
 import sys
 import unittest
+from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -9,7 +10,7 @@ from app import create_app, set_repo  # noqa: E402
 from app import schema as S  # noqa: E402
 from app.auth import hash_senha  # noqa: E402
 from app.config import Config  # noqa: E402
-from app.repo import MesFechado  # noqa: E402
+from app.repo import MesFechado, Repo  # noqa: E402
 from app.utils import (  # noqa: E402
     agrupa_por_funcionario,
     calcula_jornada,
@@ -185,12 +186,14 @@ class RepoFalso:
             "data_br": "/".join(reversed(data.split("-"))),
             "entrada_seg": entrada, "saida_seg": saida,
             "permanencia_seg": perm, "almoco_seg": almoco,
-            "trabalhadas_seg": trab, "excedidas_seg": exced,
-            "excedidas_com_hc_seg": exced_hc,
+            "trabalhadas_seg": trab,
+            # A hora corrida pedida e ainda pendente ja vale no calculo.
+            "excedidas_seg": exced_hc, "excedidas_calc_seg": exced_hc,
+            "excedidas_sem_hc_seg": exced, "excedidas_com_hc_seg": exced_hc,
             "status": status, "hc_solicitada": True, "hc_status": "Pendente",
             "obs_rh": "", "parecer": "", "unidade": "Detran",
             "jornada_horas": 8, "fora_escala": False,
-            "ajustado": False, "excedidas_calc_seg": exced,
+            "ajustado": False,
             "lancado_por": "Flavio Galisteu", "lancado_em": "01/10/2026 18:00",
             "decidido_por": "", "decidido_em": "",
         }
@@ -371,6 +374,49 @@ class TestPermissoes(BaseWeb):
             self.assertEqual(self.cliente.get(rota).status_code, 200, rota)
         self.assertEqual(self.cliente.get("/aprovacoes/").status_code, 403)
         self.assertEqual(self.cliente.get("/lancamentos/novo").status_code, 403)
+
+
+class TestHoraCorridaNoRepositorio(unittest.TestCase):
+    """Repo._map_lancamento de verdade, sem banco: a hora corrida ja conta."""
+
+    def mapeia(self, hc_solicitada, hc_status, manual=None):
+        repo = Repo.__new__(Repo)
+        repo.config = Config
+        linha = {
+            "id": 1, "prontuario": "25755", "funcionario": "Alexandre",
+            "funcionario_id": 1, "jornada_horas": 8, "fora_escala": False,
+            "data": date(2026, 10, 5), "entrada_seg": 8 * 3600, "saida_seg": 19 * 3600,
+            "status": "Pendente", "hc_solicitada": hc_solicitada, "hc_status": hc_status,
+            "obs_rh": "", "parecer_gestor": "", "unidade": "Detran",
+            "lancado_por": "", "lancado_em": None, "decidido_por": "", "decidido_em": None,
+            "excedidas_manual_seg": manual,
+        }
+        return repo._map_lancamento(linha)
+
+    def horas(self, item):
+        return format_duration(item["excedidas_seg"])
+
+    def test_sem_hora_corrida_o_almoco_e_descontado(self):
+        self.assertEqual(self.horas(self.mapeia(False, "Nao solicitada")), "2:00")
+
+    def test_hora_corrida_pendente_ja_conta(self):
+        item = self.mapeia(True, "Pendente")
+        self.assertEqual(self.horas(item), "3:00")
+        self.assertEqual(format_duration(item["excedidas_sem_hc_seg"]), "2:00")
+
+    def test_hora_corrida_autorizada_continua_contando(self):
+        self.assertEqual(self.horas(self.mapeia(True, "Autorizada")), "3:00")
+
+    def test_hora_corrida_negada_refaz_o_calculo(self):
+        item = self.mapeia(True, "Negada")
+        self.assertEqual(self.horas(item), "2:00")
+        self.assertEqual(format_duration(item["excedidas_com_hc_seg"]), "3:00")
+
+    def test_ajuste_manual_vale_em_qualquer_situacao(self):
+        for situacao in ("Pendente", "Autorizada", "Negada"):
+            item = self.mapeia(True, situacao, manual=-1800)
+            self.assertEqual(self.horas(item), "-0:30", situacao)
+            self.assertTrue(item["ajustado"])
 
 
 class TestAjusteDoExcedente(BaseWeb):
@@ -604,7 +650,7 @@ class TestSeparacaoDeFuncoes(BaseWeb):
                          "lanc_prontuario", "lanc_obs_rh", "lanc_funcionario"):
             self.assertNotIn(S.F[proibido], payload)
 
-    def test_autorizar_hc_recalcula_o_excedente(self):
+    def test_autorizar_hc_nao_muda_o_excedente_que_ja_contava_a_hora_corrida(self):
         self.entrar("fernando")
         antes = self.repo.lancamento(100)
         self.cliente.post("/aprovacoes/100", data={
@@ -612,18 +658,18 @@ class TestSeparacaoDeFuncoes(BaseWeb):
         }, follow_redirects=True)
         _, _, payload = self.repo.gravacoes[-1]
         self.assertEqual(payload[S.F["lanc_hc_status"]], "Autorizada")
-        # A hora do almoco volta para o excedente: 2:30 vira 3:30.
-        self.assertEqual(antes["excedidas_seg"], 2 * 3600 + 1800)
-        self.assertEqual(payload[S.F["lanc_excedidas"]], 3 * 3600 + 1800)
+        # A hora do almoco ja estava no excedente desde o lancamento: 3:30.
+        self.assertEqual(antes["excedidas_seg"], 3 * 3600 + 1800)
+        self.assertNotIn(S.F["lanc_excedidas"], payload)
 
-    def test_negar_hc_mantem_o_excedente(self):
+    def test_negar_hc_refaz_o_calculo_com_o_almoco_descontado(self):
         self.entrar("fernando")
         self.cliente.post("/aprovacoes/100", data={
             "decisao": "Aprovado", "hc_decisao": "Negada", "parecer": "almocou",
         }, follow_redirects=True)
         _, _, payload = self.repo.gravacoes[-1]
         self.assertEqual(payload[S.F["lanc_hc_status"]], "Negada")
-        self.assertNotIn(S.F["lanc_excedidas"], payload)
+        self.assertEqual(payload[S.F["lanc_excedidas"]], 2 * 3600 + 1800)
 
     def test_rejeicao_exige_parecer(self):
         self.entrar("fernando")
@@ -676,23 +722,25 @@ class TestBotoesDeDecisao(BaseWeb):
         _, _, payload = self.repo.gravacoes[-1]
         self.assertEqual(payload[S.F["lanc_status"]], "Rejeitado")
 
-    def test_autorizar_hc_na_linha_recalcula(self):
+    def test_autorizar_hc_na_linha_confirma_sem_mudar_o_excedente(self):
         self.entrar("fernando")
         self.cliente.post("/aprovacoes/100/hc", data={"valor": "Autorizada"},
                           follow_redirects=True)
         _, _, payload = self.repo.gravacoes[-1]
         self.assertEqual(payload[S.F["lanc_hc_status"]], "Autorizada")
-        self.assertEqual(payload[S.F["lanc_excedidas"]], 3 * 3600 + 1800)
+        # A hora corrida ja contava desde o lancamento: nada a recalcular.
+        self.assertNotIn(S.F["lanc_excedidas"], payload)
         # Decidir a hora corrida nao decide as horas excedentes.
         self.assertNotIn(S.F["lanc_status"], payload)
 
-    def test_negar_hc_na_linha(self):
+    def test_negar_hc_na_linha_refaz_o_calculo(self):
         self.entrar("fernando")
         self.cliente.post("/aprovacoes/100/hc", data={"valor": "Negada"},
                           follow_redirects=True)
         _, _, payload = self.repo.gravacoes[-1]
         self.assertEqual(payload[S.F["lanc_hc_status"]], "Negada")
-        self.assertNotIn(S.F["lanc_excedidas"], payload)
+        # O almoco volta a ser descontado: 3:30 vira 2:30.
+        self.assertEqual(payload[S.F["lanc_excedidas"]], 2 * 3600 + 1800)
 
     def test_hc_nao_pedida_nao_se_decide(self):
         self.repo._lancamentos[100]["hc_solicitada"] = False
@@ -783,8 +831,9 @@ class TestLancamentoNovo(BaseWeb):
         )
         acao, payload = self.repo.gravacoes[-1]
         self.assertEqual(acao, "criar")
-        # 8:00 as 20:00 = 12h de permanencia, menos 1h de almoco, menos 8h
-        self.assertEqual(payload[S.F["lanc_excedidas"]], 3 * 3600)
+        # 8:00 as 20:00 = 12h de permanencia. Com hora corrida pedida o almoco
+        # nao e descontado e o excedente ja nasce com ele: 12h - 8h = 4h.
+        self.assertEqual(payload[S.F["lanc_excedidas"]], 4 * 3600)
         self.assertEqual(payload[S.F["lanc_status"]], "Pendente")
         self.assertEqual(payload[S.F["lanc_hc_status"]], "Pendente")
         self.assertEqual(payload[S.F["lanc_lancado_por"]], "Flavio Galisteu")
@@ -877,15 +926,15 @@ class TestFechamento(BaseWeb):
         self.assertEqual(self.repo.gravacoes, [])
         self.assertEqual(self.repo._lancamentos[100]["status"], "Aprovado")
 
-    def test_lote_preserva_mes_fechado(self):
-        self.fecha_outubro()
+    def test_nao_existe_mais_decisao_em_lote(self):
         self.como("fernando")
         resposta = self.cliente.post(
-            "/aprovacoes/lote", data={"decisao": "Rejeitado", "parecer": "x", "selecionados": ["100", "102"]},
-            follow_redirects=True,
-        )
-        self.assertIn("preservados", resposta.get_data(as_text=True))
+            "/aprovacoes/lote", data={"decisao": "Aprovado", "selecionados": ["100", "102"]})
+        self.assertEqual(resposta.status_code, 404)
         self.assertEqual(self.repo.gravacoes, [])
+        html = self.cliente.get("/aprovacoes/").get_data(as_text=True)
+        self.assertNotIn("Decisão em lote", html)
+        self.assertNotIn('name="selecionados"', html)
 
     def test_listas_mostram_o_aviso_e_escondem_os_botoes(self):
         self.fecha_outubro()

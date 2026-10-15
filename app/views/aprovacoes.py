@@ -9,7 +9,6 @@ from .. import get_repo
 from .. import schema as S
 from ..auth import PERFIL_GESTOR, perfil_required, usuario_atual
 from ..config import Config
-from ..repo import MesFechado
 from ..utils import (
     agrupa_por_funcionario,
     calcula_jornada,
@@ -51,7 +50,8 @@ def _grava_decisao(repo, item, status=None, hc_decisao=None, parecer=None):
     jornada, almoco = Config.parametros_jornada(item["jornada_horas"])
     _, _, _, excedidas = calcula_jornada(
         item["entrada_seg"], item["saida_seg"], jornada, almoco,
-        hc_autorizada=hc_final == "Autorizada", fora_escala=item["fora_escala"],
+        hc_autorizada=item["hc_solicitada"] and hc_final != "Negada",
+        fora_escala=item["fora_escala"],
     )
     # O excedente digitado pelo RH vale no lugar do calculado: nao se regrava.
     if not item["ajustado"] and excedidas is not None and excedidas != item["excedidas_seg"]:
@@ -60,7 +60,7 @@ def _grava_decisao(repo, item, status=None, hc_decisao=None, parecer=None):
 
 
 def _decide(repo, item, status, hc_decisao, parecer):
-    """Decisao completa, usada pela tela Analisar e pelo lote."""
+    """Decisao completa, usada pela tela Analisar."""
     if not (item["hc_solicitada"] and hc_decisao in HC_VALIDOS):
         hc_decisao = None
     _grava_decisao(repo, item, status, hc_decisao, parecer)
@@ -191,39 +191,3 @@ def decidir_hc(row_id):
         "ok",
     )
     return redirect(_de_volta())
-
-
-@bp.route("/lote", methods=["POST"])
-@perfil_required(PERFIL_GESTOR)
-def lote():
-    """Aprova ou rejeita varios lancamentos marcados na listagem."""
-    repo = get_repo()
-    status = request.form.get("decisao")
-    if status not in STATUS_VALIDOS:
-        flash("Escolha aprovar ou rejeitar.", "erro")
-        return redirect(url_for("aprovacoes.listar"))
-
-    parecer = (request.form.get("parecer") or "").strip()
-    if status == "Rejeitado" and not parecer:
-        flash("Rejeicao em lote exige um parecer.", "erro")
-        return redirect(url_for("aprovacoes.listar"))
-
-    ids = request.form.getlist("selecionados")
-    hc_decisao = "Autorizada" if status == "Aprovado" else "Negada"
-    total, bloqueados = 0, 0
-    for bruto in ids:
-        try:
-            item = repo.lancamento(int(bruto))
-        except (ValueError, TypeError):
-            continue
-        try:
-            _decide(repo, item, status, hc_decisao, parecer)
-        except MesFechado:
-            bloqueados += 1
-            continue
-        total += 1
-
-    flash(f"{total} lancamento(s) marcados como {status.lower()}.", "ok" if total else "aviso")
-    if bloqueados:
-        flash(f"{bloqueados} lancamento(s) de mes fechado foram preservados.", "aviso")
-    return redirect(request.referrer or url_for("aprovacoes.listar"))
