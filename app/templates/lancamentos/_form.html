@@ -1,0 +1,127 @@
+<h1>{% if item %}Editar lançamento{% else %}Lançar o dia{% endif %}</h1>
+<p class="sub">
+  A jornada padrão é de {{ jornada_horas }} horas. O almoço é descontado quando a
+  permanência passa de {{ almoco_a_partir_horas }} horas, e quem trabalha menos que a
+  jornada fica com excedente negativo. Marque a hora corrida quando a pessoa não
+  parou para almoçar: essa hora já conta como excedente e só deixa de valer se o
+  gestor negar. A saída menor que a entrada é tratada como virada de meia-noite.
+  O plantonista 12x36 tem jornada de 12 horas e não tem hora de almoço.
+</p>
+
+{% if modal %}
+{# Dentro do modal nao ha a faixa de avisos da pagina: os erros aparecem aqui. #}
+{% with mensagens = get_flashed_messages(with_categories=true) %}
+  {% if mensagens %}
+  <div class="avisos">
+    {% for categoria, texto in mensagens %}<div class="aviso aviso-{{ categoria }}">{{ texto }}</div>{% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
+{% endif %}
+
+<form class="cartao" method="post" action="{{ acao }}"
+      {% if modal %}hx-post="{{ acao }}" hx-target="#modal-corpo" hx-swap="innerHTML"
+      hx-select="unset" hx-select-oob="unset" hx-disabled-elt="find button[type=submit]"{% endif %}>
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <div class="linha">
+    <div class="campo estreito">
+      <label for="data">Data</label>
+      <input type="date" id="data" name="data" required
+             value="{{ form.get('data') or hoje }}">
+    </div>
+    <div class="campo">
+      <label for="funcionario_id">Funcionário</label>
+      <select id="funcionario_id" name="funcionario_id" required>
+        <option value="">Selecione</option>
+        {% for f in funcionarios %}
+        <option value="{{ f.id }}" data-jornada="{{ f.jornada_horas }}"
+          {% if form.get('funcionario_id')|string == f.id|string %}selected{% endif %}>
+          {{ f.nome }} — {{ f.prontuario }}{% if f.unidade %} ({{ f.unidade }}){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="linha">
+    <div class="campo estreito">
+      <label for="entrada">Entrada (H:MM)</label>
+      <input type="text" id="entrada" name="entrada" placeholder="8:00" required
+             value="{{ form.get('entrada') or '' }}">
+    </div>
+    <div class="campo estreito">
+      <label for="saida">Saída (H:MM)</label>
+      <input type="text" id="saida" name="saida" placeholder="19:30" required
+             value="{{ form.get('saida') or '' }}">
+    </div>
+    <div class="campo checa">
+      <input type="checkbox" id="hc_solicitada" name="hc_solicitada"
+             {% if form.get('hc_solicitada') %}checked{% endif %}>
+      <label for="hc_solicitada">Hora corrida: não parou para almoçar</label>
+    </div>
+    <div class="campo checa so-plantao">
+      <input type="checkbox" id="fora_escala" name="fora_escala"
+             {% if form.get('fora_escala') %}checked{% endif %}>
+      <label for="fora_escala">Plantão no dia de folga: todas as horas são excedentes</label>
+    </div>
+  </div>
+
+  <div class="linha">
+    <div class="campo estreito">
+      <label for="excedente">Excedente (H:MM)</label>
+      <input type="text" id="excedente" name="excedente" placeholder="automático"
+             value="{{ form.get('excedente') or '' }}">
+    </div>
+    <div class="campo">
+      <p class="dica">
+        Em branco, o sistema calcula o excedente.
+        {% if item %}Calculado agora: <strong>{{ item.excedidas_calc_seg | dur }}</strong>.{% endif %}
+        Preencha só para ajustar: vale no lugar do cálculo, aceita valor negativo
+        (por exemplo <code>-0:30</code>) e exige o motivo na observação abaixo.
+        Para voltar ao cálculo, apague o campo e salve.
+      </p>
+    </div>
+  </div>
+
+  <div class="linha">
+    <div class="campo">
+      <label for="obs_rh">Observação do RH (obrigatória ao ajustar o excedente)</label>
+      <textarea id="obs_rh" name="obs_rh">{{ form.get('obs_rh') or '' }}</textarea>
+    </div>
+  </div>
+
+  {% if item %}
+  <p class="dica">Situação atual: {{ item.status }}.</p>
+  {% if decidido %}
+  <p class="destaque">
+    O gestor já decidiu este lançamento. Ao salvar, a decisão é desfeita e ele
+    volta para o gestor decidir de novo.
+  </p>
+  {% endif %}
+  {% endif %}
+
+  <div class="acoes">
+    <button class="botao" type="submit">Salvar</button>
+    {% if modal %}
+    <button class="botao secundario" type="button"
+            onclick="document.getElementById('modal').close()">Cancelar</button>
+    {% else %}
+    <a class="botao secundario" href="{{ voltar }}">Cancelar</a>
+    {% endif %}
+  </div>
+</form>
+
+<script>
+// Hora corrida so existe para quem almoca; folga so para o plantonista 12x36.
+function ajustaRegime() {
+  const opcao = document.querySelector('#funcionario_id option:checked');
+  const plantao = !!opcao && opcao.dataset.jornada === '12';
+  const hc = document.getElementById('hc_solicitada').closest('.campo');
+  hc.hidden = plantao;
+  document.querySelector('.so-plantao').hidden = !plantao;
+  if (plantao) document.getElementById('hc_solicitada').checked = false;
+  else document.getElementById('fora_escala').checked = false;
+}
+document.getElementById('funcionario_id').addEventListener('change', ajustaRegime);
+ajustaRegime();
+</script>

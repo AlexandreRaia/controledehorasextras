@@ -4,7 +4,6 @@ from flask import abort
 from . import schema as S
 from .db import Database, DBError
 from .utils import (
-    calcula_jornada,
     format_date_br,
     format_datetime_br,
     month_bounds,
@@ -185,22 +184,19 @@ class Repo:
         entrada, saida = r["entrada_seg"], r["saida_seg"]
         hc_status = r["hc_status"]
         fora_escala = bool(r["fora_escala"])
-        jornada, almoco_cfg = self.config.parametros_jornada(r["jornada_horas"])
+        horas = r["jornada_horas"]
         # A hora corrida pedida ja conta desde o lancamento; so a negativa do
         # gestor devolve o desconto do almoco.
         hc_vale = bool(r["hc_solicitada"]) and hc_status != "Negada"
-        permanencia, almoco, trabalhadas, excedidas_calc = calcula_jornada(
-            entrada, saida, jornada, almoco_cfg,
-            hc_autorizada=hc_vale, fora_escala=fora_escala,
+        permanencia, almoco, trabalhadas, excedidas_calc = self.config.calcula(
+            horas, entrada, saida, hc_autorizada=hc_vale, fora_escala=fora_escala,
         )
         # Quanto o excedente ficaria se o gestor negasse a hora corrida.
-        _, _, _, excedidas_sem_hc = calcula_jornada(
-            entrada, saida, jornada, almoco_cfg,
-            hc_autorizada=False, fora_escala=fora_escala,
+        _, _, _, excedidas_sem_hc = self.config.calcula(
+            horas, entrada, saida, hc_autorizada=False, fora_escala=fora_escala,
         )
-        _, _, _, excedidas_com_hc = calcula_jornada(
-            entrada, saida, jornada, almoco_cfg,
-            hc_autorizada=True, fora_escala=fora_escala,
+        _, _, _, excedidas_com_hc = self.config.calcula(
+            horas, entrada, saida, hc_autorizada=True, fora_escala=fora_escala,
         )
         # O RH pode digitar o excedente; ai ele vale no lugar do calculado e a
         # hora corrida deixa de mexer nele.

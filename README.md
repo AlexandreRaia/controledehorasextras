@@ -48,10 +48,14 @@ Quem pode fechar e reabrir está em `PODE_FECHAR` e `PODE_REABRIR`, em
 A permanência é a diferença entre saída e entrada. Saída menor que a entrada é
 tratada como virada de meia-noite.
 
-Da permanência sai a hora de almoço, que nunca conta como hora excedente. O
-desconto não derruba a jornada abaixo do padrão, então quem fica oito horas e
-meia não aparece devendo meia hora. As horas trabalhadas mostram só a jornada
-normal, no máximo 8 horas, e o excedente é o que sobra acima dela.
+Da permanência sai a hora de almoço, que nunca conta como hora excedente. Ela é
+descontada **quando a permanência passa de 6 horas** (`ALMOCO_A_PARTIR_HORAS`);
+em um período mais curto não há almoço a descontar.
+
+O excedente é o tempo líquido menos a jornada e **pode ser negativo**: quem
+trabalha menos que a jornada fica devendo horas, e o dia aparece com excedente
+negativo, sem o RH precisar digitar nada. As horas trabalhadas mostram só a
+jornada normal, no máximo 8 horas.
 
 A hora corrida é a exceção. Ela significa que a pessoa não parou para almoçar.
 O RH marca o pedido no lançamento e **ela já vale desde aquele momento**: a hora
@@ -64,9 +68,14 @@ negativa devolve o desconto.
 |---|---|---|---|---|---|---|
 | 8:00 | 19:00, com HC | 11:00 | 0:00 | 8:00 | 3:00 | 2:00 |
 | 8:00 | 19:00, sem HC | 11:00 | 1:00 | 8:00 | 2:00 | 2:00 |
-| 8:00 | 19:30, com HC | 11:30 | 0:00 | 8:00 | 3:30 | 2:30 |
-| 8:00 | 16:30, sem HC | 8:30 | 0:30 | 8:00 | 0:00 | 0:00 |
-| 8:00 | 12:00, sem HC | 4:00 | 0:00 | 4:00 | 0:00 | 0:00 |
+| 8:00 | 17:00, sem HC | 9:00 | 1:00 | 8:00 | 0:00 | 0:00 |
+| 8:00 | 16:30, sem HC | 8:30 | 1:00 | 7:30 | -0:30 | -0:30 |
+| 10:00 | 17:00, sem HC | 7:00 | 1:00 | 6:00 | -2:00 | -2:00 |
+| 10:00 | 17:00, com HC | 7:00 | 0:00 | 7:00 | -1:00 | -2:00 |
+| 8:00 | 12:00, sem HC | 4:00 | 0:00 | 4:00 | -4:00 | -4:00 |
+
+Faltas, abonos e outros casos que o sistema não prevê são corrigidos pelo RH no
+campo Excedente do lançamento (veja "Ajuste do excedente pelo RH", abaixo).
 
 A jornada e o almoço são configuráveis em `JORNADA_PADRAO_HORAS` e
 `ALMOCO_HORAS`, iguais a 8 e 1 por padrão.
@@ -185,7 +194,12 @@ A raiz do site não tem painel. Ela encaminha o gestor para a fila de
 aprovações e os demais perfis para a lista de lançamentos.
 
 - **Lançar o dia**: formulário para o RH registrar entrada e saída de um
-  funcionário em uma data, com a opção de pedir hora corrida.
+  funcionário em uma data, com a opção de pedir hora corrida. Abre em uma janela
+  (modal) sobre a lista de lançamentos.
+- **Editar**: abre o mesmo formulário na janela, sem sair da lista. Ao salvar, só a
+  lista é atualizada, com os mesmos filtros, e a página não recarrega. Sem
+  JavaScript, os mesmos botões levam a uma página própria, e tudo continua
+  funcionando.
 - **Lançamentos**: lista do mês agrupada por funcionário, com subtotal de cada
   um e filtros por funcionário e situação.
 - **Aprovações**: fila do gestor agrupada por funcionário. Cada linha tem os

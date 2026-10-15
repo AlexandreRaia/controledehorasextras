@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
 {% block titulo %}Lançamentos{% endblock %}
-{% set colunas = 11 if pode_lancar else 10 %}
-{% set voltar = request.full_path %}
 {% block conteudo %}
 
 <h1>Lançamentos</h1>
 <p class="sub">
   Agrupados por funcionário, com subtotal de cada um.
-  A hora de almoço não entra no excedente, salvo na hora corrida, que já conta desde o lançamento e só deixa de valer se o gestor negar.
+  O almoço é descontado quando a permanência passa de {{ almoco_a_partir_horas }} horas e não entra
+  no excedente, salvo na hora corrida, que já conta desde o lançamento e só deixa de valer se o
+  gestor negar. Quem trabalha menos que a jornada fica com excedente negativo.
 </p>
 
 {{ m.faixa_fechado(fechamento) }}
@@ -40,100 +40,30 @@
 
 {% if pode_lancar %}
 <div class="cartao acoes">
-  <a class="botao" href="{{ url_for('lancamentos.novo') }}">Lançar o dia</a>
+  <a class="botao" href="{{ url_for('lancamentos.novo', voltar=voltar) }}"
+     hx-get="{{ url_for('lancamentos.novo', voltar=voltar) }}"
+     hx-target="#modal-corpo" hx-swap="innerHTML">Lançar o dia</a>
 </div>
 {% endif %}
 
-<div class="cartao tabela-rolagem">
-  <table>
-    <thead>
-      <tr>
-        <th>Data</th>
-        <th class="num">Entrada</th><th class="num">Saída</th>
-        <th class="num">Permanência</th><th class="num">Almoço</th>
-        <th class="num">Trabalhadas</th><th class="num">Excedentes</th>
-        <th>Status</th><th>HC</th><th>Lançado por</th>
-        {% if pode_lancar %}<th>Ações</th>{% endif %}
-      </tr>
-    </thead>
-    {% for g in grupos %}
-    <tbody id="g-{{ g.chave | ident }}" hx-target="this" hx-swap="outerHTML"
-           hx-select="#g-{{ g.chave | ident }}" hx-select-oob="#avisos,#total-geral">
-      <tr class="grupo">
-        <td colspan="{{ colunas }}">
-          <strong>{{ g.funcionario }}</strong>
-          <span class="dica">prontuário {{ g.prontuario }}{% if g.unidade %} · {{ g.unidade }}{% endif %}{% if g.jornada_horas == 12 %} · plantonista 12x36{% endif %}</span>
-        </td>
-      </tr>
-      {% for i in g.itens %}
-      <tr>
-        <td>{{ i.data_br }}{% if i.fora_escala %} <span class="etiqueta e-neutro" title="Plantão no dia de folga">Folga</span>{% endif %}</td>
-        <td class="num">{{ i.entrada_seg | dur }}</td>
-        <td class="num">{{ i.saida_seg | dur }}</td>
-        <td class="num">{{ i.permanencia_seg | dur }}</td>
-        <td class="num">{{ i.almoco_seg | dur }}</td>
-        <td class="num">{{ i.trabalhadas_seg | dur }}</td>
-        <td class="num">{{ i.excedidas_seg | dur }}{{ m.marca_ajuste(i) }}</td>
-        <td>
-          {% if pode_decidir %}
-            {{ m.decidir_horas(i, voltar) }}
-          {% else %}{{ m.etiqueta_status(i.status) }}{% endif %}
-        </td>
-        <td>
-          {% if pode_decidir %}
-            {{ m.decidir_hc(i, voltar) }}
-          {% else %}{{ m.etiqueta_hc(i) }}{% endif %}
-        </td>
-        <td>{{ i.lancado_por }}</td>
-        {% if pode_lancar %}
-        <td>
-          {% if i.fechado %}
-          <span class="dica">Mês fechado</span>
-          {% else %}
-          <div class="acoes">
-            <a class="botao mini secundario" href="{{ url_for('lancamentos.editar', row_id=i.id) }}"
-               title="Editar este lançamento">{{ m.icone('editar') }}Editar</a>
-            <form method="post" action="{{ url_for('lancamentos.excluir', row_id=i.id) }}"
-                  onsubmit="return confirm('Excluir o lançamento de {{ g.funcionario }} em {{ i.data_br }}?');">
-              <button class="botao mini perigo" type="submit"
-                      title="Excluir este lançamento">{{ m.icone('lixeira') }}Excluir</button>
-            </form>
-          </div>
-          {% endif %}
-        </td>
-        {% endif %}
-      </tr>
-      {% endfor %}
-      <tr class="subtotal">
-        <td>Subtotal · {{ g.dias }} dia{{ 's' if g.dias != 1 }}</td>
-        <td class="num"></td><td class="num"></td>
-        <td class="num">{{ g.permanencia | dur }}</td>
-        <td class="num">{{ g.almoco | dur }}</td>
-        <td class="num">{{ g.trabalhadas | dur }}</td>
-        <td class="num">{{ g.excedidas | dur }}</td>
-        <td colspan="{{ colunas - 7 }}">
-          <span class="dica">
-            aprovadas {{ g.aprovadas | dur }} · pendentes {{ g.pendentes | dur }}
-            {%- if g.rejeitadas %} · rejeitadas {{ g.rejeitadas | dur }}{% endif %}
-            {%- if g.hc_pedidas %} · HC {{ g.hc_autorizadas }}/{{ g.hc_pedidas }}{% endif %}
-          </span>
-        </td>
-      </tr>
-    </tbody>
-    {% else %}
-    <tbody>
-      <tr><td colspan="{{ colunas }}" class="vazio">Nenhum lançamento no período.</td></tr>
-    </tbody>
-    {% endfor %}
-    <tfoot id="total-geral">
-    {% if grupos %}
-      <tr>
-        <td colspan="6">Total geral de {{ grupos | length }} funcionário(s)</td>
-        <td class="num">{{ total_excedido | dur }}</td>
-        <td colspan="{{ colunas - 7 }}"></td>
-      </tr>
-    {% endif %}
-    </tfoot>
-  </table>
-</div>
+{% include "lancamentos/_lista.html" %}
+
+{% if pode_lancar %}
+{# O formulario de lancar e editar abre aqui, sem sair da lista. #}
+<dialog id="modal" class="modal"><div id="modal-corpo"></div></dialog>
+<script>
+  // O htmx dispara afterSwap no elemento que recebeu o conteudo (#modal-corpo),
+  // e nao no link; por isso o ouvinte fica no corpo da pagina.
+  document.body.addEventListener('htmx:afterSwap', (e) => {
+    const modal = document.getElementById('modal');
+    if (e.target.id === 'modal-corpo' && !modal.open) modal.showModal();
+  });
+  // O servidor manda fechar depois de salvar (cabecalho HX-Trigger).
+  document.body.addEventListener('modal-fechar', () => document.getElementById('modal').close());
+  // Clicar fora da caixa tambem fecha.
+  document.getElementById('modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.close();
+  });
+</script>
+{% endif %}
 {% endblock %}

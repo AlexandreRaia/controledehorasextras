@@ -11,7 +11,6 @@ from ..auth import PERFIL_GESTOR, perfil_required, usuario_atual
 from ..config import Config
 from ..utils import (
     agrupa_por_funcionario,
-    calcula_jornada,
     format_duration,
     iso_now_utc,
     local_today,
@@ -47,9 +46,8 @@ def _grava_decisao(repo, item, status=None, hc_decisao=None, parecer=None):
         payload[S.F["lanc_hc_status"]] = hc_decisao
         hc_final = hc_decisao
 
-    jornada, almoco = Config.parametros_jornada(item["jornada_horas"])
-    _, _, _, excedidas = calcula_jornada(
-        item["entrada_seg"], item["saida_seg"], jornada, almoco,
+    _, _, _, excedidas = Config.calcula(
+        item["jornada_horas"], item["entrada_seg"], item["saida_seg"],
         hc_autorizada=item["hc_solicitada"] and hc_final != "Negada",
         fora_escala=item["fora_escala"],
     )

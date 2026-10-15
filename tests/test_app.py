@@ -40,7 +40,7 @@ class TestCalculo(unittest.TestCase):
     def jornada(self, entrada, saida, hc=False):
         return calcula_jornada(
             parse_duration(entrada), parse_duration(saida), 8 * 3600, 3600,
-            hc_autorizada=hc,
+            hc_autorizada=hc, almoco_a_partir=6 * 3600,
         )
 
     def test_almoco_sai_do_excedente(self):
@@ -67,28 +67,48 @@ class TestCalculo(unittest.TestCase):
         self.assertEqual(format_duration(trab), "8:00")
         self.assertEqual(format_duration(exced), "3:30")
 
-    def test_desconto_nunca_derruba_abaixo_da_jornada(self):
-        # Quem fica 8:30 nao pode aparecer devendo meia hora.
+    def test_dia_curto_fica_com_excedente_negativo(self):
+        # 10:00 as 17:00: permanencia 7h, almoco 1h, 6h trabalhadas, devendo 2h.
+        perm, almoco, trab, exced = self.jornada("10:00", "17:00")
+        self.assertEqual(format_duration(perm), "7:00")
+        self.assertEqual(format_duration(almoco), "1:00")
+        self.assertEqual(format_duration(trab), "6:00")
+        self.assertEqual(format_duration(exced), "-2:00")
+        # Com hora corrida ele nao almocou: 7h trabalhadas, devendo 1h.
+        perm, almoco, trab, exced = self.jornada("10:00", "17:00", hc=True)
+        self.assertEqual(almoco, 0)
+        self.assertEqual(format_duration(trab), "7:00")
+        self.assertEqual(format_duration(exced), "-1:00")
+
+    def test_oito_e_meia_de_permanencia_fica_meia_hora_devendo(self):
         _, almoco, trab, exced = self.jornada("8:00", "16:30")
-        self.assertEqual(format_duration(almoco), "0:30")
-        self.assertEqual(format_duration(trab), "8:00")
-        self.assertEqual(exced, 0)
-        # Com hora corrida, a meia hora a mais vira excedente.
+        self.assertEqual(format_duration(almoco), "1:00")
+        self.assertEqual(format_duration(trab), "7:30")
+        self.assertEqual(format_duration(exced), "-0:30")
+        # Com hora corrida o almoco volta e sobra meia hora.
         _, _, _, exced_hc = self.jornada("8:00", "16:30", hc=True)
         self.assertEqual(format_duration(exced_hc), "0:30")
 
-    def test_jornada_curta_nao_desconta_almoco(self):
+    def test_almoco_so_e_descontado_acima_de_6_horas(self):
+        # Exatamente 6h de permanencia nao desconta; 6h01 desconta.
+        _, almoco, trab, exced = self.jornada("8:00", "14:00")
+        self.assertEqual(almoco, 0)
+        self.assertEqual(format_duration(exced), "-2:00")
+        _, almoco, _, _ = self.jornada("8:00", "14:01")
+        self.assertEqual(format_duration(almoco), "1:00")
+
+    def test_meio_periodo_nao_desconta_almoco_e_fica_devendo(self):
         _, almoco, trab, exced = self.jornada("8:00", "12:00")
         self.assertEqual(almoco, 0)
         self.assertEqual(format_duration(trab), "4:00")
-        self.assertEqual(exced, 0)
+        self.assertEqual(format_duration(exced), "-4:00")
 
     def plantao(self, entrada, saida, fora_escala=False):
         # Plantonista 12x36: jornada de 12 horas e nenhum almoco a descontar.
         jornada, almoco = Config.parametros_jornada(12)
         return calcula_jornada(
             parse_duration(entrada), parse_duration(saida), jornada, almoco,
-            fora_escala=fora_escala,
+            fora_escala=fora_escala, almoco_a_partir=6 * 3600,
         )
 
     def test_parametros_por_jornada(self):
@@ -115,20 +135,26 @@ class TestCalculo(unittest.TestCase):
         self.assertEqual(format_duration(perm), "12:00")
         self.assertEqual(exced, 0)
 
+    def test_plantao_curto_fica_devendo(self):
+        _, _, trab, exced = self.plantao("7:00", "15:00")
+        self.assertEqual(format_duration(trab), "8:00")
+        self.assertEqual(format_duration(exced), "-4:00")
+
     def test_plantao_no_dia_de_folga_e_todo_excedente(self):
         perm, _, trab, exced = self.plantao("7:00", "19:00", fora_escala=True)
         self.assertEqual(format_duration(perm), "12:00")
         self.assertEqual(trab, 0)
         self.assertEqual(format_duration(exced), "12:00")
 
-    def test_sem_excedente_dentro_da_jornada(self):
-        _, _, trab, exced = self.jornada("8:00", "15:00")
-        self.assertEqual(format_duration(trab), "7:00")
+    def test_jornada_cumprida_zera_o_excedente(self):
+        # 8:00 as 17:00: 9h de permanencia, menos 1h de almoco, 8h trabalhadas.
+        _, _, trab, exced = self.jornada("8:00", "17:00")
+        self.assertEqual(format_duration(trab), "8:00")
         self.assertEqual(exced, 0)
 
     def test_virada_de_meia_noite(self):
-        perm, _, trab, exced = self.jornada("22:00", "6:00")
-        self.assertEqual(format_duration(perm), "8:00")
+        perm, _, trab, exced = self.jornada("22:00", "7:00")
+        self.assertEqual(format_duration(perm), "9:00")
         self.assertEqual(format_duration(trab), "8:00")
         self.assertEqual(exced, 0)
 
@@ -417,6 +443,111 @@ class TestHoraCorridaNoRepositorio(unittest.TestCase):
             item = self.mapeia(True, situacao, manual=-1800)
             self.assertEqual(self.horas(item), "-0:30", situacao)
             self.assertTrue(item["ajustado"])
+
+
+HX = {"HX-Request": "true"}
+
+
+class TestModalDeEdicao(BaseWeb):
+    DADOS = {"data": "2026-10-01", "funcionario_id": "1", "entrada": "8:00",
+             "saida": "17:00", "voltar": "/lancamentos/?mes=10&ano=2026&prontuario=25755"}
+
+    def test_lista_tem_o_modal_e_o_botao_abre_nele(self):
+        self.entrar("flavio")
+        html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
+        self.assertIn('<dialog id="modal"', html)
+        self.assertIn('id="lista"', html)
+        self.assertIn('hx-get="/lancamentos/100/editar?', html)
+        self.assertIn('hx-target="#modal-corpo"', html)
+        # Sem JavaScript o mesmo botao continua sendo um link para a pagina.
+        self.assertIn('href="/lancamentos/100/editar?', html)
+
+    def test_gestor_nao_ve_o_modal(self):
+        self.entrar("fernando")
+        html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
+        self.assertNotIn('<dialog id="modal"', html)
+
+    def test_htmx_recebe_so_o_formulario(self):
+        self.entrar("flavio")
+        html = self.cliente.get("/lancamentos/100/editar", headers=HX).get_data(as_text=True)
+        self.assertNotIn("<html", html)
+        self.assertIn('hx-post="/lancamentos/100/editar"', html)
+        self.assertIn('name="voltar"', html)
+        self.assertIn("onclick=\"document.getElementById('modal').close()\"", html)
+
+    def test_sem_htmx_continua_a_pagina_inteira(self):
+        self.entrar("flavio")
+        html = self.cliente.get("/lancamentos/100/editar").get_data(as_text=True)
+        self.assertIn("<html", html)
+        self.assertNotIn("hx-post", html)
+        self.assertIn('action="/lancamentos/100/editar"', html)
+
+    def test_salvar_no_modal_devolve_a_lista_e_manda_fechar(self):
+        self.entrar("flavio")
+        resposta = self.cliente.post("/lancamentos/100/editar", data=self.DADOS, headers=HX)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.headers["HX-Retarget"], "#lista")
+        self.assertEqual(resposta.headers["HX-Reswap"], "outerHTML")
+        self.assertEqual(resposta.headers["HX-Trigger"], "modal-fechar")
+        html = resposta.get_data(as_text=True)
+        self.assertNotIn("<html", html)
+        self.assertIn('id="lista"', html)
+        self.assertIn("Lancamento atualizado", html)
+        self.assertEqual(self.repo.gravacoes[-1][0], "atualizar")
+
+    def test_lista_devolvida_respeita_os_filtros_da_pagina(self):
+        self.entrar("flavio")
+        html = self.cliente.post(
+            "/lancamentos/100/editar", data=self.DADOS, headers=HX).get_data(as_text=True)
+        # Filtro por prontuario 25755: so o funcionario dele fica na lista.
+        self.assertIn("Alexandre P. S. Raia", html)
+        self.assertNotIn("<strong>Anderson</strong>", html)
+
+    def test_erro_no_modal_mantem_o_formulario_aberto(self):
+        self.entrar("flavio")
+        dados = {**self.DADOS, "entrada": "", "saida": ""}
+        resposta = self.cliente.post("/lancamentos/100/editar", data=dados, headers=HX)
+        self.assertNotIn("HX-Retarget", resposta.headers)
+        html = resposta.get_data(as_text=True)
+        self.assertIn("Informe a entrada", html)
+        self.assertIn('hx-post="/lancamentos/100/editar"', html)
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_sem_htmx_salvar_redireciona_para_a_lista_filtrada(self):
+        self.entrar("flavio")
+        resposta = self.cliente.post("/lancamentos/100/editar", data=self.DADOS)
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("prontuario=25755", resposta.headers["Location"])
+
+    def test_voltar_de_fora_do_sistema_e_ignorado(self):
+        self.entrar("flavio")
+        for ruim in ("https://evil.example/", "//evil.example/", "/aprovacoes/"):
+            resposta = self.cliente.post(
+                "/lancamentos/100/editar", data={**self.DADOS, "voltar": ruim})
+            self.assertEqual(resposta.status_code, 302)
+            self.assertTrue(resposta.headers["Location"].endswith("/lancamentos/"), ruim)
+
+    def test_modal_de_mes_fechado_avisa_sem_trazer_a_pagina_inteira(self):
+        self.repo._fechamentos.append({
+            "id": 1, "ano": 2026, "mes": 10, "fechado_por": "Fernando Cruz",
+            "fechado_em": "11/10/2026 10:00", "reaberto_por": "", "reaberto_em": "",
+            "motivo": "",
+        })
+        self.entrar("flavio")
+        html = self.cliente.get("/lancamentos/100/editar", headers=HX).get_data(as_text=True)
+        self.assertNotIn("<html", html)
+        self.assertIn("ja foi fechado", html)
+
+    def test_lancar_o_dia_tambem_abre_no_modal(self):
+        self.entrar("flavio")
+        html = self.cliente.get("/lancamentos/novo", headers=HX).get_data(as_text=True)
+        self.assertNotIn("<html", html)
+        self.assertIn('hx-post="/lancamentos/novo"', html)
+        resposta = self.cliente.post(
+            "/lancamentos/novo", headers=HX,
+            data={**self.DADOS, "data": "2026-10-09", "funcionario_id": "27"})
+        self.assertEqual(resposta.headers["HX-Trigger"], "modal-fechar")
+        self.assertEqual(self.repo.gravacoes[-1][0], "criar")
 
 
 class TestAjusteDoExcedente(BaseWeb):

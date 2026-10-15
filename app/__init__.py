@@ -77,6 +77,7 @@ def create_app(config_object=Config):
             "pode_fechar": pode_fechar(),
             "pode_reabrir": pode_reabrir(),
             "jornada_horas": app.config["JORNADA_PADRAO_SEGUNDOS"] // 3600,
+            "almoco_a_partir_horas": app.config["ALMOCO_A_PARTIR_SEGUNDOS"] // 3600,
         }
 
     @app.errorhandler(403)

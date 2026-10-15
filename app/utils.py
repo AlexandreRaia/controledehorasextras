@@ -59,17 +59,18 @@ def horas_decimais(seconds):
 
 
 def calcula_jornada(entrada_seg, saida_seg, jornada_padrao, almoco=0,
-                    hc_autorizada=False, fora_escala=False):
+                    hc_autorizada=False, fora_escala=False, almoco_a_partir=0):
     """Permanencia, desconto do almoco, horas trabalhadas e excedentes.
 
     A permanencia e a diferenca entre saida e entrada, virando a meia-noite
-    quando a saida e menor. Dela sai a hora de almoco, que nunca conta como
-    excedente, salvo quando ha hora corrida (pedida pelo RH e nao negada pelo gestor): ai o funcionario
-    nao almocou e essa hora entra no excedente.
+    quando a saida e menor. Dela sai a hora de almoco, descontada quando a
+    permanencia passa de `almoco_a_partir`. O almoco nunca conta como excedente,
+    salvo na hora corrida (pedida pelo RH e nao negada pelo gestor): ai o
+    funcionario nao almocou e essa hora entra no excedente.
 
-    O desconto nunca derruba a jornada abaixo do padrao, entao quem fica 8:30
-    nao aparece devendo meia hora. As horas trabalhadas mostram so a jornada
-    normal, no maximo o padrao; o que passa dela e excedente.
+    O excedente e o tempo liquido menos a jornada e pode ser negativo: quem
+    trabalha menos que a jornada fica devendo horas. As horas trabalhadas
+    mostram so a jornada normal, no maximo o padrao.
 
     Plantao fora da escala (12x36 trabalhado no dia de folga) nao tem jornada
     normal: toda a permanencia e excedente.
@@ -84,14 +85,14 @@ def calcula_jornada(entrada_seg, saida_seg, jornada_padrao, almoco=0,
     if fora_escala:
         return permanencia, 0, 0, permanencia
 
-    if hc_autorizada:
+    if hc_autorizada or permanencia <= almoco_a_partir:
         desconto = 0
     else:
-        desconto = max(0, min(almoco, permanencia - jornada_padrao))
+        desconto = min(almoco, permanencia)
 
     liquidas = permanencia - desconto
     trabalhadas = min(liquidas, jornada_padrao)
-    excedidas = max(0, liquidas - jornada_padrao)
+    excedidas = liquidas - jornada_padrao
     return permanencia, desconto, trabalhadas, excedidas
 
 
