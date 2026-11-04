@@ -80,6 +80,14 @@ campo Excedente do lançamento (veja "Ajuste do excedente pelo RH", abaixo).
 A jornada e o almoço são configuráveis em `JORNADA_PADRAO_HORAS` e
 `ALMOCO_HORAS`, iguais a 8 e 1 por padrão.
 
+### Permanência muito longa
+
+Uma permanência acima de 20 horas costuma ser erro de digitação (como `19:00`
+no lugar de `9:00`), mas também pode ser um plantão real. Por isso o sistema não
+bloqueia: ele avisa a permanência calculada e mostra a caixa "Confirmo que a
+permanência acima de 20 horas está correta". Marcada a caixa, o lançamento é
+gravado. O ajuste manual do excedente sozinho não dispensa a confirmação.
+
 ### Ajuste do excedente pelo RH
 
 O sistema calcula o excedente sozinho, mas existem situações que ele não prevê.

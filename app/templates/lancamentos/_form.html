@@ -66,6 +66,16 @@
     </div>
   </div>
 
+  {% if pede_confirmacao %}
+  <div class="linha">
+    <div class="campo checa destaque">
+      <input type="checkbox" id="confirma_permanencia" name="confirma_permanencia"
+             {% if form.get('confirma_permanencia') %}checked{% endif %}>
+      <label for="confirma_permanencia">Confirmo que a permanência acima de 20 horas está correta</label>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="linha">
     <div class="campo estreito">
       <label for="excedente">Excedente (H:MM)</label>

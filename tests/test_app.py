@@ -641,6 +641,55 @@ class TestAjusteDoExcedente(BaseWeb):
         self.assertIn("2:00;Sim", csv)
 
 
+class TestPermanenciaLonga(BaseWeb):
+    """Permanencia acima de 20h e aviso com confirmacao, nao bloqueio."""
+
+    # 21:14 as 18:30 vira a meia-noite: 21h16 de permanencia.
+    DADOS = {"data": "2026-11-01", "funcionario_id": "30", "entrada": "21:14", "saida": "18:30"}
+
+    def test_pede_confirmacao_em_vez_de_bloquear_em_definitivo(self):
+        self.entrar("flavio")
+        resposta = self.cliente.post("/lancamentos/novo", data=self.DADOS, headers=HX)
+        html = resposta.get_data(as_text=True)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("Permanencia de 21:16", html)
+        self.assertIn('name="confirma_permanencia"', html)
+        self.assertNotIn("HX-Retarget", resposta.headers)
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_confirmando_o_lancamento_e_gravado(self):
+        self.entrar("flavio")
+        resposta = self.cliente.post(
+            "/lancamentos/novo", data={**self.DADOS, "confirma_permanencia": "on"}, headers=HX)
+        self.assertEqual(resposta.headers["HX-Trigger"], "modal-fechar")
+        acao, payload = self.repo.gravacoes[-1]
+        self.assertEqual(acao, "criar")
+        # Plantonista, sem almoco: 21h16 menos a jornada de 12h = 9h16 de excedente.
+        self.assertEqual(payload[S.F["lanc_excedidas"]], 9 * 3600 + 16 * 60)
+
+    def test_a_confirmacao_vale_tambem_na_edicao(self):
+        self.entrar("flavio")
+        dados = {**self.DADOS, "funcionario_id": "1"}
+        self.cliente.post("/lancamentos/100/editar", data=dados)
+        self.assertEqual(self.repo.gravacoes, [])
+        self.cliente.post("/lancamentos/100/editar", data={**dados, "confirma_permanencia": "on"})
+        self.assertEqual(self.repo.gravacoes[-1][0], "atualizar")
+
+    def test_permanencia_normal_nao_pede_confirmacao(self):
+        self.entrar("flavio")
+        resposta = self.cliente.post(
+            "/lancamentos/novo", data={**self.DADOS, "entrada": "21:14", "saida": "9:14"},
+            headers=HX)
+        self.assertEqual(resposta.headers["HX-Trigger"], "modal-fechar")
+        self.assertNotIn("confirma_permanencia", resposta.get_data(as_text=True))
+
+    def test_o_ajuste_manual_sozinho_nao_dispensa_a_confirmacao(self):
+        self.entrar("flavio")
+        self.cliente.post("/lancamentos/novo", data={
+            **self.DADOS, "excedente": "12:30", "obs_rh": "plantonista"})
+        self.assertEqual(self.repo.gravacoes, [])
+
+
 class TestPlantonista(BaseWeb):
     def lanca(self, funcionario_id, **extra):
         self.entrar("flavio")
