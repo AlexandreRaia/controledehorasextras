@@ -797,6 +797,19 @@ class TestRelatorioPorPeriodo(BaseWeb):
         self.assertIn('filename="horas-extras-2026-10.csv"',
                       resposta.headers["Content-Disposition"])
 
+    def test_filtro_em_uma_linha_com_botoes_so_de_icone(self):
+        html = self.pede("mes=10&ano=2026").get_data(as_text=True)
+        self.assertIn('class="cartao filtros filtros-linha"', html)
+        # Sem texto no botao, o nome fica no title e no aria-label (leitor de tela).
+        self.assertIn('title="Filtrar" aria-label="Filtrar"', html)
+        self.assertIn('title="Baixar CSV" aria-label="Baixar CSV"', html)
+        self.assertIn('class="botao so-icone"', html)
+        self.assertIn('class="botao secundario so-icone"', html)
+        self.assertIn("M2.2 3h11.6", html, "icone de filtro")
+        self.assertIn("M8 2.2v7.6", html, "icone de download")
+        self.assertNotIn(">Baixar CSV<", html)
+        self.assertNotIn(">Filtrar<", html)
+
     def test_link_do_csv_leva_o_periodo(self):
         html = self.pede("de=2026-10-05&ate=2026-10-20").get_data(as_text=True)
         self.assertIn("/relatorios/csv?", html)

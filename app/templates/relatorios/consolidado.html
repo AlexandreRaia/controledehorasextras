@@ -22,7 +22,7 @@
 
 {% if personalizado %}{{ m.faixa_fechados(fechados_no_periodo) }}{% else %}{{ m.faixa_fechado(fechamento) }}{% endif %}
 
-<form class="cartao filtros" method="get">
+<form class="cartao filtros filtros-linha" method="get">
   {{ m.seletor_mes(ano, mes) }}
   <div class="campo estreito">
     <label for="de">De</label>
@@ -61,13 +61,14 @@
       {% endfor %}
     </select>
   </div>
-  <div class="campo estreito"><button class="botao" type="submit">Filtrar</button></div>
-  <div class="campo estreito">
-    <a class="botao secundario"
+  {# So icones, para o filtro caber em uma linha; o texto fica no title e no aria-label. #}
+  <div class="campo acao-icone">
+    <button class="botao so-icone" type="submit" title="Filtrar" aria-label="Filtrar">{{ m.icone('filtro') }}</button>
+  </div>
+  <div class="campo acao-icone">
+    <a class="botao secundario so-icone" title="Baixar CSV" aria-label="Baixar CSV"
        href="{{ url_for('relatorios.consolidado_csv', ano=ano, mes=mes, unidade=unidade, status=status, prontuario=prontuario,
-                      de=(de or none), ate=(ate or none)) }}">
-      Baixar CSV
-    </a>
+                      de=(de or none), ate=(ate or none)) }}">{{ m.icone('baixar') }}</a>
   </div>
 </form>
 
