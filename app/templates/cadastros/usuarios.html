@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "macros.html" as m %}
 {% block titulo %}Usuários{% endblock %}
 {% block conteudo %}
 
@@ -36,8 +37,9 @@
   </div>
   <p class="dica">Ao editar, deixe a senha em branco para manter a atual.</p>
   <div class="acoes">
-    <button class="botao" type="submit">Salvar</button>
-    <button class="botao secundario" type="button" onclick="limpar()">Limpar</button>
+    <button class="botao so-icone" type="submit" title="Salvar" aria-label="Salvar">{{ m.icone('salvar') }}</button>
+    <button class="botao secundario so-icone" type="button" title="Limpar o formulário"
+            aria-label="Limpar o formulário" onclick="limpar()">{{ m.icone('limpar') }}</button>
   </div>
 </form>
 
@@ -59,12 +61,12 @@
         </td>
         <td>
           <div class="acoes">
-            <button class="botao mini secundario" type="button"
+            <button class="botao mini secundario so-icone" type="button" title="Editar" aria-label="Editar"
                     onclick='editar({{ {"id": u.id, "nome": u.nome, "login": u.login,
-                                        "perfil": u.perfil, "ativo": u.ativo} | tojson }})'>Editar</button>
+                                        "perfil": u.perfil, "ativo": u.ativo} | tojson }})'>{{ m.icone('editar') }}</button>
             <form method="post" action="{{ url_for('cadastros.usuario_excluir', row_id=u.id) }}"
                   onsubmit="return confirm('Excluir o usuário {{ u.nome }}?');">
-              <button class="botao mini perigo" type="submit">Excluir</button>
+              <button class="botao mini perigo so-icone" type="submit" title="Excluir" aria-label="Excluir">{{ m.icone('lixeira') }}</button>
             </form>
           </div>
         </td>

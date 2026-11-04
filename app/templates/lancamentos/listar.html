@@ -35,16 +35,18 @@
       {% endfor %}
     </select>
   </div>
-  <div class="campo estreito"><button class="botao" type="submit">Filtrar</button></div>
+  <div class="campo auto">
+    <button class="botao so-icone" type="submit" title="Filtrar" aria-label="Filtrar">{{ m.icone('filtro') }}</button>
+  </div>
+  {% if pode_lancar %}
+  <div class="campo auto">
+    <a class="botao ok so-icone" href="{{ url_for('lancamentos.novo', voltar=voltar) }}"
+       hx-get="{{ url_for('lancamentos.novo', voltar=voltar) }}"
+       hx-target="#modal-corpo" hx-swap="innerHTML"
+       title="Lançar o dia" aria-label="Lançar o dia">{{ m.icone('mais') }}</a>
+  </div>
+  {% endif %}
 </form>
-
-{% if pode_lancar %}
-<div class="cartao acoes">
-  <a class="botao" href="{{ url_for('lancamentos.novo', voltar=voltar) }}"
-     hx-get="{{ url_for('lancamentos.novo', voltar=voltar) }}"
-     hx-target="#modal-corpo" hx-swap="innerHTML">Lançar o dia</a>
-</div>
-{% endif %}
 
 {% include "lancamentos/_lista.html" %}
 

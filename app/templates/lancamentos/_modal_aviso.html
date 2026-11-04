@@ -1,5 +1,6 @@
+{% import "macros.html" as m %}
 <div class="aviso aviso-erro">{{ texto }}</div>
 <div class="acoes">
-  <button class="botao secundario" type="button"
-          onclick="document.getElementById('modal').close()">Fechar</button>
+  <button class="botao secundario so-icone" type="button" title="Fechar" aria-label="Fechar"
+          onclick="document.getElementById('modal').close()">{{ m.icone('nao') }}</button>
 </div>

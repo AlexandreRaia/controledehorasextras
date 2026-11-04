@@ -138,6 +138,14 @@ Como o excedente depende da hora corrida, negá-la regrava a coluna
 consequência da própria decisão. Entrada, saída, data e funcionário continuam
 intocados.
 
+## Botões
+
+Todos os botões do sistema são só um ícone, para ocupar pouco espaço. O nome da
+ação fica no `title` (o balão ao passar o mouse) e no `aria-label` (leitores de
+tela). A única exceção é o **Entrar** da tela de login, que tem texto. Os ícones
+ficam em `app/templates/macros.html` (macro `icone`) e os botões pequenos usam
+`botao mini so-icone`. Confirmações (como ao excluir) continuam as mesmas.
+
 ## Instalação
 
 ```bash

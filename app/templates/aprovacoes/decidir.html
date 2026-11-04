@@ -94,9 +94,12 @@
   </div>
 
   <div class="acoes">
-    <button class="botao ok" type="submit" name="decisao" value="Aprovado">Aprovar horas</button>
-    <button class="botao perigo" type="submit" name="decisao" value="Rejeitado">Rejeitar horas</button>
-    <a class="botao secundario" href="{{ url_for('aprovacoes.listar') }}">Voltar</a>
+    <button class="botao ok so-icone" type="submit" name="decisao" value="Aprovado"
+            title="Aprovar horas" aria-label="Aprovar horas">{{ m.icone('ok') }}</button>
+    <button class="botao perigo so-icone" type="submit" name="decisao" value="Rejeitado"
+            title="Rejeitar horas" aria-label="Rejeitar horas">{{ m.icone('nao') }}</button>
+    <a class="botao secundario so-icone" href="{{ url_for('aprovacoes.listar') }}"
+       title="Voltar" aria-label="Voltar">{{ m.icone('voltar') }}</a>
   </div>
 </form>
 {% endblock %}

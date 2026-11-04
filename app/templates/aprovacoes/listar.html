@@ -41,7 +41,9 @@
            {% if not somente_relevantes %}checked{% endif %}>
     <label for="todos">Mostrar também dias sem excedente</label>
   </div>
-  <div class="campo estreito"><button class="botao" type="submit">Filtrar</button></div>
+  <div class="campo auto">
+    <button class="botao so-icone" type="submit" title="Filtrar" aria-label="Filtrar">{{ m.icone('filtro') }}</button>
+  </div>
 </form>
 
 <div class="cartao tabela-rolagem">
@@ -84,7 +86,8 @@
           {{ m.decidir_horas(i, voltar) }}
         </td>
         <td>{{ i.decidido_por }}{% if i.decidido_em %}<br><span class="dica">{{ i.decidido_em }}</span>{% endif %}</td>
-        <td>{% if not i.fechado %}<a class="botao mini secundario" href="{{ url_for('aprovacoes.decidir', row_id=i.id) }}">Analisar</a>{% endif %}</td>
+        <td>{% if not i.fechado %}<a class="botao mini secundario so-icone" href="{{ url_for('aprovacoes.decidir', row_id=i.id) }}"
+                                       title="Analisar este lançamento" aria-label="Analisar este lançamento">{{ m.icone('analisar') }}</a>{% endif %}</td>
       </tr>
       {% endfor %}
       <tr class="subtotal">

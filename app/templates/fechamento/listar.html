@@ -16,7 +16,9 @@
     <label for="ano">Ano</label>
     <input type="number" id="ano" name="ano" value="{{ ano }}" min="2020" max="2100">
   </div>
-  <div class="campo estreito"><button class="botao" type="submit">Ver</button></div>
+  <div class="campo auto">
+    <button class="botao so-icone" type="submit" title="Ver o ano" aria-label="Ver o ano">{{ m.icone('ver') }}</button>
+  </div>
 </form>
 
 <div class="cartao tabela-rolagem">
@@ -43,16 +45,17 @@
                   action="{{ url_for('fechamento.reabrir', ano=ano, mes=mes.numero) }}">
               <input type="text" name="motivo" required minlength="5" maxlength="200"
                      placeholder="Motivo da reabertura" aria-label="Motivo da reabertura">
-              <button class="botao mini perigo" type="submit">Reabrir</button>
+              <button class="botao mini perigo so-icone" type="submit" title="Reabrir o mês"
+                      aria-label="Reabrir o mês">{{ m.icone('reabrir') }}</button>
             </form>
             {% endif %}
           {% elif not mes.futuro and pode_fechar %}
             <form method="post" action="{{ url_for('fechamento.fechar', ano=ano, mes=mes.numero) }}"
                   onsubmit="return confirm('Fechar {{ mes.nome }} de {{ ano }}? Depois disso ninguém altera lançamentos deste mês.');">
-              <button class="botao mini ok" type="submit" {% if mes.pendencias %}disabled
-                      title="Decida os {{ mes.pendencias }} lançamento(s) pendente(s) antes de fechar"{% endif %}>
-                {{ m.icone('lock') }}Fechar mês
-              </button>
+              <button class="botao mini ok so-icone" type="submit" aria-label="Fechar mês"
+                      {% if mes.pendencias %}disabled
+                      title="Decida os {{ mes.pendencias }} lançamento(s) pendente(s) antes de fechar"
+                      {% else %}title="Fechar {{ mes.nome }}"{% endif %}>{{ m.icone('lock') }}</button>
             </form>
           {% endif %}
         </td>

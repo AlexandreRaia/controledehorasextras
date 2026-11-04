@@ -1,5 +1,6 @@
 """Testes do calculo de horas e das regras de permissao, sem tocar no banco."""
 import os
+import re
 import sys
 import unittest
 from datetime import date
@@ -815,6 +816,75 @@ class TestRelatorioPorPeriodo(BaseWeb):
         self.assertIn("/relatorios/csv?", html)
         self.assertIn("de=2026-10-05", html.split("/relatorios/csv?", 1)[1].split('"', 1)[0])
         self.assertIn("ate=2026-10-20", html.split("/relatorios/csv?", 1)[1].split('"', 1)[0])
+
+
+class TestBotoesSoComIcone(BaseWeb):
+    """Todo botao do sistema e so um icone, com o nome no title e no aria-label."""
+
+    # (login, rota, cabecalhos): cada tela que tem botoes, no perfil que a usa.
+    TELAS = [
+        ("flavio", "/lancamentos/?mes=10&ano=2026", {}),
+        ("flavio", "/lancamentos/100/editar", {}),
+        ("flavio", "/lancamentos/100/editar", HX),
+        ("flavio", "/lancamentos/novo", HX),
+        ("fernando", "/lancamentos/?mes=10&ano=2026", {}),
+        ("fernando", "/aprovacoes/?mes=10&ano=2026&status=", {}),
+        ("fernando", "/aprovacoes/100", {}),
+        ("fernando", "/fechamento/?ano=2026", {}),
+        ("alexandre", "/fechamento/?ano=2026", {}),
+        ("alexandre", "/cadastros/funcionarios", {}),
+        ("alexandre", "/cadastros/unidades", {}),
+        ("alexandre", "/cadastros/usuarios", {}),
+        ("veridiana", "/relatorios?mes=10&ano=2026", {}),
+        ("fernando", "/lancamentos/novo", {}),  # 403: pagina de erro com botao
+    ]
+    BOTAO = re.compile(
+        r'<(button|a)\b[^>]*class="botao[^"]*"[^>]*>(.*?)</\1>', re.DOTALL)
+
+    def botoes(self, html):
+        return [(m.group(0), m.group(2)) for m in self.BOTAO.finditer(html)]
+
+    def test_nenhum_botao_tem_texto_e_todos_tem_nome(self):
+        total = 0
+        for login, rota, cabecalhos in self.TELAS:
+            self.cliente.get("/logout")
+            self.entrar(login)
+            html = self.cliente.get(rota, headers=cabecalhos).get_data(as_text=True)
+            achados = self.botoes(html)
+            for tag, interno in achados:
+                sem_icone = re.sub(r"<svg.*?</svg>", "", interno, flags=re.DOTALL)
+                abertura = tag.split(">", 1)[0]
+                self.assertNotRegex(sem_icone, r"[A-Za-zÀ-ÿ]",
+                                    f"{rota} ({login}): botao com texto: {sem_icone.strip()!r}")
+                self.assertIn("so-icone", abertura, f"{rota}: botao sem a classe so-icone")
+                self.assertRegex(abertura, r'aria-label="[^"]+"',
+                                 f"{rota} ({login}): botao sem aria-label")
+                self.assertRegex(abertura, r'title="[^"]+"',
+                                 f"{rota} ({login}): botao sem title")
+                self.assertIn("<svg", interno, f"{rota}: botao sem icone")
+            total += len(achados)
+        self.assertGreater(total, 40, "o teste deveria ter encontrado muitos botoes")
+
+    def test_botoes_de_decisao_continuam_enviando_o_valor(self):
+        self.entrar("fernando")
+        html = self.cliente.get("/aprovacoes/?mes=10&ano=2026&status=").get_data(as_text=True)
+        self.assertIn('name="valor" value="Aprovado"', html)
+        self.assertIn('name="valor" value="Rejeitado"', html)
+        self.assertIn('name="valor" value="Autorizada"', html)
+        self.assertIn('name="valor" value="Negada"', html)
+
+    def test_excluir_continua_pedindo_confirmacao(self):
+        self.entrar("flavio")
+        html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
+        self.assertIn("return confirm('Excluir o lançamento de", html)
+        self.cliente.get("/logout")
+        self.entrar("alexandre")
+        for rota in ("/cadastros/funcionarios", "/cadastros/unidades", "/cadastros/usuarios"):
+            self.assertIn("return confirm('Excluir", self.cliente.get(rota).get_data(as_text=True), rota)
+
+    def test_o_login_mantem_o_texto_entrar(self):
+        html = self.cliente.get("/login").get_data(as_text=True)
+        self.assertIn(">Entrar</button>", html)
 
 
 class TestPlantonista(BaseWeb):

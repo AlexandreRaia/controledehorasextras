@@ -289,3 +289,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .filtros-linha .campo { flex: 1 1 140px; }
   .filtros-linha .campo.estreito, .filtros-linha .acao-icone { flex: 0 0 auto; }
 }
+
+/* ---------------------------------------------- botoes pequenos so de icone */
+.botao.mini.so-icone { width: 30px; height: 28px; }
+.botao.mini.so-icone .icone { width: 15px; height: 15px; }
+.botao.so-icone[disabled] { opacity: .45; cursor: not-allowed; }

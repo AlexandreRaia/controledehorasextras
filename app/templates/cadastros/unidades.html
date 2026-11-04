@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "macros.html" as m %}
 {% block titulo %}Unidades{% endblock %}
 {% block conteudo %}
 
@@ -14,8 +15,9 @@
     </div>
   </div>
   <div class="acoes">
-    <button class="botao" type="submit">Salvar</button>
-    <button class="botao secundario" type="button" onclick="limpar()">Limpar</button>
+    <button class="botao so-icone" type="submit" title="Salvar" aria-label="Salvar">{{ m.icone('salvar') }}</button>
+    <button class="botao secundario so-icone" type="button" title="Limpar o formulário"
+            aria-label="Limpar o formulário" onclick="limpar()">{{ m.icone('limpar') }}</button>
   </div>
 </form>
 
@@ -28,11 +30,11 @@
         <td>{{ u.nome }}</td>
         <td>
           <div class="acoes">
-            <button class="botao mini secundario" type="button"
-                    onclick="editar({{ u.id }}, {{ u.nome | tojson }})">Editar</button>
+            <button class="botao mini secundario so-icone" type="button" title="Editar" aria-label="Editar"
+                    onclick="editar({{ u.id }}, {{ u.nome | tojson }})">{{ m.icone('editar') }}</button>
             <form method="post" action="{{ url_for('cadastros.unidade_excluir', row_id=u.id) }}"
                   onsubmit="return confirm('Excluir a unidade {{ u.nome }}?');">
-              <button class="botao mini perigo" type="submit">Excluir</button>
+              <button class="botao mini perigo so-icone" type="submit" title="Excluir" aria-label="Excluir">{{ m.icone('lixeira') }}</button>
             </form>
           </div>
         </td>

@@ -1,3 +1,4 @@
+{% import "macros.html" as m %}
 <h1>{% if item %}Editar lançamento{% else %}Lançar o dia{% endif %}</h1>
 <p class="sub">
   A jornada padrão é de {{ jornada_horas }} horas. O almoço é descontado quando a
@@ -111,12 +112,12 @@
   {% endif %}
 
   <div class="acoes">
-    <button class="botao" type="submit">Salvar</button>
+    <button class="botao so-icone" type="submit" title="Salvar" aria-label="Salvar">{{ m.icone('salvar') }}</button>
     {% if modal %}
-    <button class="botao secundario" type="button"
-            onclick="document.getElementById('modal').close()">Cancelar</button>
+    <button class="botao secundario so-icone" type="button" title="Cancelar" aria-label="Cancelar"
+            onclick="document.getElementById('modal').close()">{{ m.icone('nao') }}</button>
     {% else %}
-    <a class="botao secundario" href="{{ voltar }}">Cancelar</a>
+    <a class="botao secundario so-icone" href="{{ voltar }}" title="Cancelar" aria-label="Cancelar">{{ m.icone('nao') }}</a>
     {% endif %}
   </div>
 </form>

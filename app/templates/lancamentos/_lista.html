@@ -59,16 +59,16 @@
           {% else %}
           <div class="acoes">
             {# Abre o formulario no modal; sem JavaScript o link leva a pagina de edicao. #}
-            <a class="botao mini secundario"
+            <a class="botao mini secundario so-icone"
                href="{{ url_for('lancamentos.editar', row_id=i.id, voltar=voltar) }}"
                hx-get="{{ url_for('lancamentos.editar', row_id=i.id, voltar=voltar) }}"
                hx-target="#modal-corpo" hx-swap="innerHTML" hx-select="unset" hx-select-oob="unset"
-               title="Editar este lançamento">{{ m.icone('editar') }}Editar</a>
+               title="Editar este lançamento" aria-label="Editar este lançamento">{{ m.icone('editar') }}</a>
             <form method="post" action="{{ url_for('lancamentos.excluir', row_id=i.id) }}"
                   onsubmit="return confirm('Excluir o lançamento de {{ g.funcionario }} em {{ i.data_br }}?');">
               <input type="hidden" name="voltar" value="{{ voltar }}">
-              <button class="botao mini perigo" type="submit"
-                      title="Excluir este lançamento">{{ m.icone('lixeira') }}Excluir</button>
+              <button class="botao mini perigo so-icone" type="submit"
+                      title="Excluir este lançamento" aria-label="Excluir este lançamento">{{ m.icone('lixeira') }}</button>
             </form>
           </div>
           {% endif %}
