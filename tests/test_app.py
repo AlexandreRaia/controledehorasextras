@@ -256,6 +256,10 @@ class RepoFalso:
 
     def lancamentos(self, inicio=None, fim=None, prontuario=None, status=None,
                     unidade=None, hc_status=None):
+        # O falso nao filtra por data (os dados de teste sao de outubro); guarda o
+        # periodo recebido para os testes conferirem o que a tela pediu.
+        self.ultimo_filtro = {"inicio": inicio, "fim": fim, "prontuario": prontuario,
+                              "status": status}
         itens = list(self._lancamentos.values())
         if prontuario:
             itens = [i for i in itens if i["prontuario"] == prontuario]
@@ -688,6 +692,116 @@ class TestPermanenciaLonga(BaseWeb):
         self.cliente.post("/lancamentos/novo", data={
             **self.DADOS, "excedente": "12:30", "obs_rh": "plantonista"})
         self.assertEqual(self.repo.gravacoes, [])
+
+
+class TestRelatorioPorPeriodo(BaseWeb):
+    def fecha(self, ano, mes):
+        self.repo._fechamentos.append({
+            "id": len(self.repo._fechamentos) + 1, "ano": ano, "mes": mes,
+            "fechado_por": "Fernando Cruz", "fechado_em": "11/10/2026 10:00",
+            "reaberto_por": "", "reaberto_em": "", "motivo": "",
+        })
+
+    def pede(self, query, rota="/relatorios"):
+        self.entrar("veridiana")
+        return self.cliente.get(f"{rota}?{query}")
+
+    def test_mes_e_ano_continuam_valendo_sem_as_datas(self):
+        self.pede("mes=10&ano=2026")
+        self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-10-01")
+        self.assertEqual(self.repo.ultimo_filtro["fim"], "2026-10-31")
+
+    def test_de_e_ate_valem_no_lugar_do_mes(self):
+        html = self.pede("mes=10&ano=2026&de=2026-10-05&ate=2026-10-20").get_data(as_text=True)
+        self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-10-05")
+        self.assertEqual(self.repo.ultimo_filtro["fim"], "2026-10-20")
+        self.assertIn('type="date" id="de" name="de" value="2026-10-05"', html)
+        self.assertIn('type="date" id="ate" name="ate" value="2026-10-20"', html)
+        self.assertIn("<strong>05/10/2026</strong> a <strong>20/10/2026</strong>", html)
+        self.assertIn("limpar período", html)
+
+    def test_periodo_que_cruza_dois_meses(self):
+        self.pede("de=2026-09-20&ate=2026-10-10")
+        self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-09-20")
+        self.assertEqual(self.repo.ultimo_filtro["fim"], "2026-10-10")
+
+    def test_periodo_em_um_ano_novo(self):
+        self.pede("de=2026-12-20&ate=2027-01-10")
+        self.assertEqual(self.repo.ultimo_filtro["fim"], "2027-01-10")
+
+    def test_o_mes_selecionado_aparece_como_periodo_quando_nao_ha_datas(self):
+        html = self.pede("mes=10&ano=2026").get_data(as_text=True)
+        self.assertIn("<strong>01/10/2026</strong> a <strong>31/10/2026</strong>", html)
+        self.assertNotIn("limpar período", html)
+
+    def test_so_uma_data_avisa_e_usa_o_mes(self):
+        for query in ("mes=10&ano=2026&de=2026-10-05", "mes=10&ano=2026&ate=2026-10-20"):
+            html = self.pede(query).get_data(as_text=True)
+            self.assertIn("Informe as duas datas", html, query)
+            self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-10-01", query)
+            self.assertEqual(self.repo.ultimo_filtro["fim"], "2026-10-31", query)
+
+    def test_datas_invertidas_avisam_e_usam_o_mes(self):
+        html = self.pede("mes=10&ano=2026&de=2026-10-20&ate=2026-10-05").get_data(as_text=True)
+        self.assertIn("data inicial e maior que a final", html)
+        self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-10-01")
+
+    def test_data_invalida_avisa_e_usa_o_mes(self):
+        html = self.pede("mes=10&ano=2026&de=abc&ate=2026-10-20").get_data(as_text=True)
+        self.assertIn("Informe as duas datas", html)
+        self.assertEqual(self.repo.ultimo_filtro["fim"], "2026-10-31")
+
+    def test_limite_de_366_dias(self):
+        # 366 dias passa; 367 nao.
+        self.pede("mes=10&ano=2026&de=2026-01-01&ate=2027-01-01")
+        self.assertEqual(self.repo.ultimo_filtro["fim"], "2027-01-01")
+        html = self.pede("mes=10&ano=2026&de=2026-01-01&ate=2027-01-02").get_data(as_text=True)
+        self.assertIn("periodo maximo e de 366 dias", html)
+        self.assertEqual(self.repo.ultimo_filtro["fim"], "2026-10-31")
+
+    def test_outros_filtros_combinam_com_o_periodo(self):
+        self.pede("de=2026-10-01&ate=2026-10-31&prontuario=48906&status=Aprovado")
+        self.assertEqual(self.repo.ultimo_filtro, {
+            "inicio": "2026-10-01", "fim": "2026-10-31",
+            "prontuario": "48906", "status": "Aprovado"})
+
+    def test_faixa_lista_os_meses_fechados_que_o_periodo_toca(self):
+        self.fecha(2026, 10)
+        html = self.pede("de=2026-09-20&ate=2026-10-10").get_data(as_text=True)
+        self.assertIn("O período inclui um mês fechado", html)
+        self.assertIn("Outubro/2026", html)
+        self.assertNotIn("Setembro/2026 (", html)
+
+    def test_faixa_com_mais_de_um_mes_fechado(self):
+        self.fecha(2026, 9)
+        self.fecha(2026, 10)
+        html = self.pede("de=2026-09-20&ate=2026-10-10").get_data(as_text=True)
+        self.assertIn("O período inclui meses fechados", html)
+        self.assertIn("Setembro/2026", html)
+        self.assertIn("Outubro/2026", html)
+
+    def test_sem_mes_fechado_no_periodo_nao_ha_faixa(self):
+        self.fecha(2026, 8)
+        html = self.pede("de=2026-09-20&ate=2026-10-10").get_data(as_text=True)
+        self.assertNotIn("faixa-fechado", html)
+
+    def test_csv_respeita_o_periodo_e_o_nome_mostra_as_datas(self):
+        resposta = self.pede("de=2026-10-05&ate=2026-10-20&prontuario=48906", "/relatorios/csv")
+        self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-10-05")
+        self.assertEqual(self.repo.ultimo_filtro["fim"], "2026-10-20")
+        self.assertIn('filename="horas-extras-2026-10-05_a_2026-10-20.csv"',
+                      resposta.headers["Content-Disposition"])
+
+    def test_csv_sem_as_datas_mantem_o_nome_do_mes(self):
+        resposta = self.pede("mes=10&ano=2026", "/relatorios/csv")
+        self.assertIn('filename="horas-extras-2026-10.csv"',
+                      resposta.headers["Content-Disposition"])
+
+    def test_link_do_csv_leva_o_periodo(self):
+        html = self.pede("de=2026-10-05&ate=2026-10-20").get_data(as_text=True)
+        self.assertIn("/relatorios/csv?", html)
+        self.assertIn("de=2026-10-05", html.split("/relatorios/csv?", 1)[1].split('"', 1)[0])
+        self.assertIn("ate=2026-10-20", html.split("/relatorios/csv?", 1)[1].split('"', 1)[0])
 
 
 class TestPlantonista(BaseWeb):

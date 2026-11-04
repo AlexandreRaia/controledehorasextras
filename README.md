@@ -218,7 +218,12 @@ aprovações e os demais perfis para a lista de lançamentos.
   Os mesmos botões aparecem na lista de Lançamentos quando quem olha é o
   gestor. A decisão é sempre dia a dia, não há aprovação em lote.
 - **Relatórios**: consolidado por funcionário, detalhe dia a dia e exportação
-  em CSV separado por ponto e vírgula, pronto para o Excel.
+  em CSV separado por ponto e vírgula, pronto para o Excel. O período é o mês e
+  o ano, ou um intervalo livre nos campos **De** e **Até** (calendário), de até
+  366 dias. Com as duas datas preenchidas, elas valem no lugar do mês e do ano;
+  com só uma, ou com datas inválidas ou invertidas, o sistema avisa e usa o mês.
+  Se o intervalo toca meses fechados, uma faixa lista quais são. O CSV leva o
+  mesmo período, e o nome do arquivo mostra as datas.
 - **Fechamento**: situação dos doze meses do ano, com o que ainda espera
   decisão, o botão de fechar para o Gestor e o de reabrir para o Administrador.
 - **Cadastros**: unidades, funcionários e usuários.

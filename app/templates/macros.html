@@ -102,6 +102,20 @@
   {% else %}<span class="etiqueta e-pendente">{{ icone('relogio') }}A decidir</span>{% endif %}
 {% endmacro %}
 
+{# Aviso de um periodo livre: lista os meses fechados que ele toca, se houver. #}
+{% macro faixa_fechados(fechados) %}
+  {% if fechados %}
+  <div class="aviso aviso-aviso faixa-fechado">
+    {{ icone('lock') }}
+    <span>
+      <strong>O período inclui {{ 'um mês fechado' if fechados | length == 1 else 'meses fechados' }}:</strong>
+      {% for f in fechados %}{{ f.rotulo }} (por {{ f.fechado_por }} em {{ f.fechado_em }}){{ ', ' if not loop.last }}{% endfor %}.
+      Nesses meses, lançamentos, edições e decisões estão bloqueados.
+    </span>
+  </div>
+  {% endif %}
+{% endmacro %}
+
 {# Aviso no topo das telas de um mes que ja foi fechado. #}
 {% macro faixa_fechado(fech) %}
   {% if fech %}
