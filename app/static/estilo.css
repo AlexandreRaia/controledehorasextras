@@ -294,3 +294,22 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .botao.mini.so-icone { width: 30px; height: 28px; }
 .botao.mini.so-icone .icone { width: 15px; height: 15px; }
 .botao.so-icone[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* ------------------------------------------------ impressao / PDF do relatorio */
+.so-impressao { display: none; }
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+  body { background: #fff; }
+  .topo, .rodape, .filtros, .avisos, .nao-imprimir, .periodo a { display: none !important; }
+  .so-impressao { display: inline; }
+  .conteudo { max-width: none; padding: 0; margin: 0; }
+  .cartao { box-shadow: none; border: 0; }
+  .tabela-rolagem { overflow: visible; }
+  table { font-size: 11px; }
+  th, td { padding: 4px 6px; }
+  thead { display: table-header-group; }
+  tfoot { display: table-row-group; }
+  tr { break-inside: avoid; }
+  tr.grupo { break-after: avoid; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

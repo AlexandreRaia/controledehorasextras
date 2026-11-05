@@ -13,7 +13,7 @@
 {% block conteudo %}
 
 <h1>Relatório consolidado</h1>
-<p class="sub">
+<p class="sub nao-imprimir">
   Dia a dia de cada funcionário no período, com o subtotal separado pela decisão
   do gestor. A coluna Almoço mostra o que foi descontado por não ser hora excedente.
   Escolha o mês e o ano, ou preencha De e Até para um período livre (até 366 dias):
@@ -70,9 +70,14 @@
        href="{{ url_for('relatorios.consolidado_csv', ano=ano, mes=mes, unidade=unidade, status=status, prontuario=prontuario,
                       de=(de or none), ate=(ate or none)) }}">{{ m.icone('baixar') }}</a>
   </div>
+  <div class="campo acao-icone">
+    <button class="botao secundario so-icone" type="button" onclick="window.print()"
+            title="Imprimir ou salvar em PDF" aria-label="Imprimir ou salvar em PDF">{{ m.icone('imprimir') }}</button>
+  </div>
 </form>
 
 <p class="dica periodo">
+  <span class="so-impressao">{% if unidade %}Unidade: <strong>{{ unidade }}</strong> · {% endif %}{% if status %}Situação: <strong>{{ status }}</strong> · {% endif %}</span>
   Período: <strong>{{ inicio | data_br }}</strong> a <strong>{{ fim | data_br }}</strong>
   {% if personalizado %}
   · <a href="{{ url_for('relatorios.consolidado', ano=ano, mes=mes, unidade=unidade, status=status, prontuario=prontuario) }}">limpar período</a>
@@ -87,13 +92,13 @@
         <th class="num">Entrada</th><th class="num">Saída</th>
         <th class="num">Permanência</th><th class="num">Almoço</th>
         <th class="num">Trabalhadas</th><th class="num">Excedentes</th>
-        <th>Status</th><th>HC</th><th>Parecer do gestor</th>
+        <th>Status</th><th>HC</th><th>Decidido por</th><th>Parecer do gestor</th>
       </tr>
     </thead>
     {% for g in linhas %}
     <tbody>
       <tr class="grupo">
-        <td colspan="10">
+        <td colspan="11">
           <strong>{{ g.funcionario }}</strong>
           <span class="dica">prontuário {{ g.prontuario }}{% if g.unidade %} · {{ g.unidade }}{% endif %}{% if g.jornada_horas == 12 %} · plantonista 12x36{% endif %}</span>
         </td>
@@ -109,6 +114,7 @@
         <td class="num">{{ i.excedidas_seg | dur }}{{ m.marca_ajuste(i) }}</td>
         <td>{{ m.etiqueta_status(i.status) }}</td>
         <td>{{ m.etiqueta_hc(i) }}</td>
+        <td>{{ i.decidido_por }}</td>
         <td>{{ i.parecer }}</td>
       </tr>
       {% endfor %}
@@ -119,12 +125,12 @@
         <td class="num">{{ g.almoco | dur }}</td>
         <td class="num">{{ g.trabalhadas | dur }}</td>
         <td class="num">{{ g.excedidas | dur }}</td>
-        <td colspan="3">{{ resumo(g.aprovadas, g.pendentes, g.rejeitadas, g.hc_autorizadas) }}</td>
+        <td colspan="4">{{ resumo(g.aprovadas, g.pendentes, g.rejeitadas, g.hc_autorizadas) }}</td>
       </tr>
     </tbody>
     {% else %}
     <tbody>
-      <tr><td colspan="10" class="vazio">Sem dados para o filtro escolhido.</td></tr>
+      <tr><td colspan="11" class="vazio">Sem dados para o filtro escolhido.</td></tr>
     </tbody>
     {% endfor %}
     {% if linhas %}
@@ -135,7 +141,7 @@
         <td class="num">{{ linhas | sum(attribute='almoco') | dur }}</td>
         <td class="num">{{ linhas | sum(attribute='trabalhadas') | dur }}</td>
         <td class="num">{{ linhas | sum(attribute='excedidas') | dur }}</td>
-        <td colspan="3">{{ resumo(linhas | sum(attribute='aprovadas'),
+        <td colspan="4">{{ resumo(linhas | sum(attribute='aprovadas'),
                                   linhas | sum(attribute='pendentes'),
                                   linhas | sum(attribute='rejeitadas'),
                                   linhas | sum(attribute='hc_autorizadas')) }}</td>
