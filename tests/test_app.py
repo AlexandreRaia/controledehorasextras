@@ -12,6 +12,7 @@ from app import schema as S  # noqa: E402
 from app.auth import hash_senha  # noqa: E402
 from app.config import Config  # noqa: E402
 from app.repo import MesFechado, Repo  # noqa: E402
+from app.utils import normaliza  # noqa: E402
 from app.utils import (  # noqa: E402
     agrupa_por_funcionario,
     calcula_jornada,
@@ -167,7 +168,10 @@ class RepoFalso:
     def __init__(self):
         self.gravacoes = []
         self._fechamentos = []
-        self._unidades = [{"id": 18, "nome": "Detran"}, {"id": 19, "nome": "SMA"}]
+        self._unidades = [
+            {"id": 18, "nome": "Detran", "ativo": True},
+            {"id": 19, "nome": "SMA", "ativo": True},
+        ]
         self._funcionarios = [{
             "id": 1, "nome": "Alexandre P. S. Raia", "prontuario": "25755",
             "telefone": "(11)975492889", "cargo": "Analista de TI",
@@ -226,34 +230,125 @@ class RepoFalso:
         }
 
     # --- leitura
-    def unidades(self):
-        return list(self._unidades)
+    def _proximo_id(self, itens):
+        return max([i["id"] for i in itens] + [0]) + 1
+
+    # --- unidades
+    def unidades(self, somente_ativas=False):
+        return [dict(u) for u in self._unidades if u["ativo"] or not somente_ativas]
 
     def unidade(self, row_id):
-        return next(u for u in self._unidades if u["id"] == row_id)
+        return dict(next(u for u in self._unidades if u["id"] == row_id))
 
+    def unidade_criar(self, nome, ativo=True):
+        novo = {"id": self._proximo_id(self._unidades), "nome": nome, "ativo": ativo}
+        self._unidades.append(novo)
+        return novo["id"]
+
+    def unidade_atualizar(self, row_id, nome, ativo=True):
+        alvo = next(u for u in self._unidades if u["id"] == row_id)
+        alvo.update(nome=nome, ativo=ativo)
+
+    def unidade_definir_ativo(self, row_id, ativo):
+        next(u for u in self._unidades if u["id"] == row_id)["ativo"] = ativo
+
+    def unidade_excluir(self, row_id):
+        self._unidades = [u for u in self._unidades if u["id"] != row_id]
+
+    # --- funcionarios
     def funcionarios(self, somente_ativos=False):
-        return list(self._funcionarios)
+        return [dict(f) for f in self._funcionarios if f["ativo"] or not somente_ativos]
 
     def funcionario(self, row_id):
-        return next(f for f in self._funcionarios if f["id"] == row_id)
+        return dict(next(f for f in self._funcionarios if f["id"] == row_id))
 
     def funcionario_por_prontuario(self, prontuario):
         return next((f for f in self._funcionarios if f["prontuario"] == prontuario), None)
 
+    def _campos_funcionario(self, dados):
+        unidade = next((u for u in self._unidades
+                        if str(u["id"]) == str(dados.get("unidade_id"))), None)
+        return {
+            "nome": dados["nome"], "prontuario": dados["prontuario"],
+            "telefone": dados["telefone"], "cargo": dados["cargo"],
+            "unidade": unidade["nome"] if unidade else "",
+            "unidade_ids": [unidade["id"]] if unidade else [],
+            "ativo": dados["ativo"], "jornada_horas": dados["jornada_horas"],
+        }
+
     def funcionario_criar(self, dados):
         self.funcionario_gravado = dados
-        return {"id": 999}
+        novo = {"id": self._proximo_id(self._funcionarios), **self._campos_funcionario(dados)}
+        self._funcionarios.append(novo)
+        return novo["id"]
 
     def funcionario_atualizar(self, row_id, dados):
         self.funcionario_gravado = dados
+        next(f for f in self._funcionarios if f["id"] == row_id).update(
+            self._campos_funcionario(dados))
 
+    def funcionario_definir_ativo(self, row_id, ativo):
+        next(f for f in self._funcionarios if f["id"] == row_id)["ativo"] = ativo
+
+    def funcionario_excluir(self, row_id):
+        self._funcionarios = [f for f in self._funcionarios if f["id"] != row_id]
+
+    # --- usuarios
     def usuarios(self):
-        return list(self._usuarios)
+        return [dict(u) for u in self._usuarios]
 
     def usuario_por_login(self, login):
         alvo = (login or "").lower()
-        return next((u for u in self._usuarios if u["login"] == alvo), None)
+        return next((u for u in self._usuarios if u["login"].lower() == alvo), None)
+
+    def usuario_criar(self, dados):
+        novo = {"id": self._proximo_id(self._usuarios), "nome": dados["nome"],
+                "login": dados["login"], "perfil": dados["perfil"],
+                "hash": dados.get("hash", ""), "ativo": dados["ativo"]}
+        self._usuarios.append(novo)
+        return novo["id"]
+
+    def usuario_atualizar(self, row_id, dados):
+        alvo = next(u for u in self._usuarios if u["id"] == row_id)
+        alvo.update(nome=dados["nome"], login=dados["login"], perfil=dados["perfil"],
+                    ativo=dados["ativo"])
+        if dados.get("hash"):
+            alvo["hash"] = dados["hash"]
+
+    def usuario_definir_ativo(self, row_id, ativo):
+        next(u for u in self._usuarios if u["id"] == row_id)["ativo"] = ativo
+
+    def usuario_excluir(self, row_id):
+        self._usuarios = [u for u in self._usuarios if u["id"] != row_id]
+
+    # --- vinculos (o que impede excluir)
+    def vinculos_funcionarios(self):
+        n = {}
+        for lanc in self._lancamentos.values():
+            n[lanc["prontuario"]] = n.get(lanc["prontuario"], 0) + 1
+        return n
+
+    def vinculos_unidades(self):
+        return {
+            u["id"]: {
+                "funcionarios": sum(1 for f in self._funcionarios if u["id"] in f["unidade_ids"]),
+                "lancamentos": sum(1 for lanc in self._lancamentos.values()
+                                   if lanc["unidade"] == u["nome"]),
+            }
+            for u in self._unidades
+        }
+
+    def vinculos_usuarios(self):
+        n = {}
+        for lanc in self._lancamentos.values():
+            for campo in ("lancado_por", "decidido_por"):
+                if lanc[campo]:
+                    n[lanc[campo]] = n.get(lanc[campo], 0) + 1
+        for fechamento in self._fechamentos:
+            for campo in ("fechado_por", "reaberto_por"):
+                if fechamento[campo]:
+                    n[fechamento[campo]] = n.get(fechamento[campo], 0) + 1
+        return n
 
     def lancamentos(self, inicio=None, fim=None, prontuario=None, status=None,
                     unidade=None, hc_status=None):
@@ -835,6 +930,14 @@ class TestBotoesSoComIcone(BaseWeb):
         ("alexandre", "/cadastros/funcionarios", {}),
         ("alexandre", "/cadastros/unidades", {}),
         ("alexandre", "/cadastros/usuarios", {}),
+        ("alexandre", "/cadastros/funcionarios", HX),
+        ("alexandre", "/cadastros/funcionarios/novo", HX),
+        ("alexandre", "/cadastros/funcionarios/30/editar", HX),
+        ("alexandre", "/cadastros/unidades/novo", HX),
+        ("alexandre", "/cadastros/unidades/19/editar", HX),
+        ("alexandre", "/cadastros/usuarios/novo", HX),
+        ("alexandre", "/cadastros/usuarios/2/editar", HX),
+        ("alexandre", "/cadastros/usuarios/novo", {}),
         ("veridiana", "/relatorios?mes=10&ano=2026", {}),
         ("fernando", "/lancamentos/novo", {}),  # 403: pagina de erro com botao
     ]
@@ -880,11 +983,339 @@ class TestBotoesSoComIcone(BaseWeb):
         self.cliente.get("/logout")
         self.entrar("alexandre")
         for rota in ("/cadastros/funcionarios", "/cadastros/unidades", "/cadastros/usuarios"):
-            self.assertIn("return confirm('Excluir", self.cliente.get(rota).get_data(as_text=True), rota)
+            self.assertIn('hx-confirm="Excluir', self.cliente.get(rota).get_data(as_text=True), rota)
 
     def test_o_login_mantem_o_texto_entrar(self):
         html = self.cliente.get("/login").get_data(as_text=True)
         self.assertIn(">Entrar</button>", html)
+
+
+class TestCadastrosDoAdmin(BaseWeb):
+    """Lista com busca, modal de cadastro e edicao, excluir so sem vinculos, inativar."""
+
+    DADOS_FUNC = {"nome": "Zelia Nova", "prontuario": "99001", "telefone": "", "cargo": "Fiscal",
+                  "unidade_id": "19", "jornada_horas": "8", "ativo": "on"}
+
+    def setUp(self):
+        super().setUp()
+        self.entrar("alexandre")
+
+    def pagina(self, chave, query="", cabecalhos=None):
+        return self.cliente.get(f"/cadastros/{chave}?{query}", headers=cabecalhos or {}).get_data(as_text=True)
+
+    def lista(self, chave, query=""):
+        return self.pagina(chave, query, HX)
+
+    # ---------------------------------------------------------- lista e busca
+    def test_htmx_recebe_so_a_regiao_e_a_pagina_traz_filtro_e_modal(self):
+        for chave in ("funcionarios", "unidades", "usuarios"):
+            parcial = self.lista(chave)
+            self.assertNotIn("<html", parcial, chave)
+            self.assertIn('id="lista"', parcial, chave)
+            inteira = self.pagina(chave)
+            self.assertIn("<html", inteira, chave)
+            self.assertIn('name="q"', inteira, chave)
+            self.assertIn('<dialog id="modal"', inteira, chave)
+            self.assertIn('hx-trigger="input delay:300ms, change, submit"', inteira, chave)
+            self.assertIn("/novo?", inteira, f"{chave}: botao de adicionar")
+
+    def test_busca_ignora_acento_e_maiusculas(self):
+        html = self.lista("funcionarios", "q=PLANTÃO")
+        self.assertIn("Paulo Plantao", html)
+        self.assertNotIn("Anderson", html)
+        self.assertIn("1 de 3 funcionário(s)", html)
+        self.assertIn("Anderson", self.lista("funcionarios", "q=motorista"))
+        self.assertIn("Alexandre P. S. Raia", self.lista("funcionarios", "q=25755"))
+        self.assertIn("SMA", self.lista("unidades", "q=sma"))
+        self.assertNotIn("Detran", self.lista("unidades", "q=sma"))
+        self.assertIn("Flavio Galisteu", self.lista("usuarios", "q=FLAVIO"))
+        self.assertNotIn("Fernando Cruz", self.lista("usuarios", "q=flavio"))
+
+    def test_busca_sem_resultado_e_lista_vazia_explicada(self):
+        html = self.lista("funcionarios", "q=zzzz")
+        self.assertIn("Nenhum funcionário encontrado neste filtro", html)
+        self.assertIn("0 de 3 funcionário(s)", html)
+
+    def test_filtros_proprios_de_cada_cadastro(self):
+        self.assertIn("Paulo Plantao", self.lista("funcionarios", "unidade=18"))
+        self.assertNotIn("Paulo Plantao", self.lista("funcionarios", "unidade=19"))
+        self.assertNotIn("Paulo Plantao", self.lista("funcionarios", "unidade=sem"))
+        html = self.lista("usuarios", "perfil=RH")
+        self.assertIn("Flavio Galisteu", html)
+        self.assertNotIn("Fernando Cruz", html)
+
+    def test_filtro_de_situacao(self):
+        self.cliente.post("/cadastros/funcionarios/30/situacao", data={"ativo": "0"}, headers=HX)
+        self.assertNotIn("Paulo Plantao", self.lista("funcionarios", "situacao=ativos"))
+        self.assertIn("Paulo Plantao", self.lista("funcionarios", "situacao=inativos"))
+        self.assertNotIn("Anderson", self.lista("funcionarios", "situacao=inativos"))
+
+    # -------------------------------------------------- excluir ou inativar
+    def test_so_se_pode_excluir_quem_nao_tem_vinculos(self):
+        # Alexandre (25755) tem lancamento; Paulo (70001) nao tem.
+        html = self.lista("funcionarios")
+        self.assertNotIn("/cadastros/funcionarios/1/excluir", html)
+        self.assertIn("/cadastros/funcionarios/1/situacao", html)
+        self.assertIn("/cadastros/funcionarios/30/excluir", html)
+        self.assertNotIn("/cadastros/funcionarios/30/situacao", html)
+        # Detran tem funcionarios e lancamentos; SMA nao tem nada.
+        html = self.lista("unidades")
+        self.assertNotIn("/cadastros/unidades/18/excluir", html)
+        self.assertIn("/cadastros/unidades/18/situacao", html)
+        self.assertIn("/cadastros/unidades/19/excluir", html)
+        # Flavio ja lancou; Fernando nao fez nada.
+        html = self.lista("usuarios")
+        self.assertNotIn("/cadastros/usuarios/2/excluir", html)
+        self.assertIn("/cadastros/usuarios/2/situacao", html)
+        self.assertIn("/cadastros/usuarios/3/excluir", html)
+
+    def test_o_proprio_admin_nao_ve_excluir_nem_inativar(self):
+        html = self.lista("usuarios")
+        self.assertNotIn("/cadastros/usuarios/1/excluir", html)
+        self.assertNotIn("/cadastros/usuarios/1/situacao", html)
+        self.assertIn("/cadastros/usuarios/1/editar", html)
+        self.assertIn("(você)", html)
+
+    def test_inativo_mostra_reativar_e_so_ganha_excluir_se_nao_tiver_vinculos(self):
+        for row_id in (1, 30):
+            self.cliente.post(f"/cadastros/funcionarios/{row_id}/situacao", data={"ativo": "0"}, headers=HX)
+        html = self.lista("funcionarios")
+        self.assertIn('name="ativo" value="1"', html)
+        self.assertIn("Inativo", html)
+        # Com vinculos: reativar mas nao excluir. Sem vinculos: reativar e excluir.
+        self.assertNotIn("/cadastros/funcionarios/1/excluir", html)
+        self.assertIn("/cadastros/funcionarios/30/excluir", html)
+
+    def test_excluir_com_vinculos_e_recusado_no_servidor(self):
+        resposta = self.cliente.post("/cadastros/funcionarios/1/excluir", headers=HX)
+        html = resposta.get_data(as_text=True)
+        self.assertIn("lancamento(s) no historico", html)
+        self.assertIn("Inative em vez de excluir", html)
+        self.assertEqual(len(self.repo._funcionarios), 3)
+        resposta = self.cliente.post("/cadastros/unidades/18/excluir", headers=HX)
+        self.assertIn("vinculado(s)", resposta.get_data(as_text=True))
+        self.assertEqual(len(self.repo._unidades), 2)
+        resposta = self.cliente.post("/cadastros/usuarios/2/excluir", headers=HX)
+        self.assertIn("no historico", resposta.get_data(as_text=True))
+        self.assertEqual(len(self.repo._usuarios), 4)
+
+    def test_excluir_sem_vinculos_apaga_e_atualiza_a_lista(self):
+        resposta = self.cliente.post("/cadastros/funcionarios/30/excluir", headers=HX)
+        html = resposta.get_data(as_text=True)
+        self.assertEqual(resposta.headers["HX-Retarget"], "#lista")
+        self.assertNotIn("HX-Trigger", resposta.headers)
+        self.assertIn("Funcionario excluido", html)
+        self.assertNotIn("Paulo Plantao", html)
+        self.assertEqual(len(self.repo._funcionarios), 2)
+        self.cliente.post("/cadastros/unidades/19/excluir", headers=HX)
+        self.assertEqual([u["id"] for u in self.repo._unidades], [18])
+        self.cliente.post("/cadastros/usuarios/3/excluir", headers=HX)
+        self.assertNotIn(3, [u["id"] for u in self.repo._usuarios])
+
+    def test_inativar_e_reativar(self):
+        html = self.cliente.post(
+            "/cadastros/unidades/18/situacao", data={"ativo": "0"}, headers=HX).get_data(as_text=True)
+        self.assertIn("Unidade inativada", html)
+        self.assertFalse(self.repo._unidades[0]["ativo"])
+        html = self.cliente.post(
+            "/cadastros/unidades/18/situacao", data={"ativo": "1"}, headers=HX).get_data(as_text=True)
+        self.assertIn("Unidade reativada", html)
+        self.assertTrue(self.repo._unidades[0]["ativo"])
+
+    def test_nao_inativa_nem_exclui_o_proprio_usuario(self):
+        html = self.cliente.post("/cadastros/usuarios/1/situacao", data={"ativo": "0"}, headers=HX).get_data(as_text=True)
+        self.assertIn("proprio usuario", html)
+        self.assertTrue(self.repo._usuarios[0]["ativo"])
+        html = self.cliente.post("/cadastros/usuarios/1/excluir", headers=HX).get_data(as_text=True)
+        self.assertIn("proprio usuario", html)
+        self.assertEqual(len(self.repo._usuarios), 4)
+
+    def test_mantem_ao_menos_um_administrador_ativo(self):
+        # O unico administrador ativo nao pode ser inativado nem excluido por outra sessao.
+        self.repo._usuarios.append(self.repo._usuario(5, "Bia Admin", "bia", "Administrador"))
+        self.repo._usuarios[0]["ativo"] = False  # a sessao do Alexandre continua aberta
+        html = self.cliente.post("/cadastros/usuarios/5/situacao", data={"ativo": "0"}, headers=HX).get_data(as_text=True)
+        self.assertIn("ao menos um administrador ativo", html)
+        html = self.cliente.post("/cadastros/usuarios/5/excluir", headers=HX).get_data(as_text=True)
+        self.assertIn("ao menos um administrador ativo", html)
+        self.assertEqual(len(self.repo._usuarios), 5)
+
+    def test_acoes_sem_htmx_redirecionam_para_a_lista(self):
+        resposta = self.cliente.post("/cadastros/funcionarios/30/excluir", data={"voltar": "/cadastros/funcionarios?q=pa"})
+        self.assertEqual(resposta.status_code, 302)
+        self.assertTrue(resposta.headers["Location"].endswith("/cadastros/funcionarios?q=pa"))
+
+    # ---------------------------------------------------------------- cadastrar
+    def test_adicionar_abre_o_formulario_no_modal(self):
+        for chave, campo in (("funcionarios", "f_nome"), ("unidades", "u_nome"), ("usuarios", "u_senha")):
+            html = self.cliente.get(f"/cadastros/{chave}/novo", headers=HX).get_data(as_text=True)
+            self.assertNotIn("<html", html, chave)
+            self.assertIn(f'hx-post="/cadastros/{chave}/novo"', html, chave)
+            self.assertIn(f'id="{campo}"', html, chave)
+            self.assertIn("document.getElementById('modal').close()", html, chave)
+            pagina = self.cliente.get(f"/cadastros/{chave}/novo").get_data(as_text=True)
+            self.assertIn("<html", pagina, f"{chave}: sem JavaScript abre a pagina")
+            self.assertNotIn("hx-post", pagina, chave)
+
+    def test_cadastrar_funcionario_atualiza_a_lista_e_fecha_o_modal(self):
+        resposta = self.cliente.post("/cadastros/funcionarios/novo", data=self.DADOS_FUNC, headers=HX)
+        self.assertEqual(resposta.headers["HX-Retarget"], "#lista")
+        self.assertEqual(resposta.headers["HX-Reswap"], "outerHTML")
+        self.assertEqual(resposta.headers["HX-Trigger"], "modal-fechar")
+        html = resposta.get_data(as_text=True)
+        self.assertNotIn("<html", html)
+        self.assertIn("Zelia Nova", html)
+        self.assertIn("Funcionario cadastrado", html)
+        self.assertIn("4 de 4 funcionário(s)", html)
+        novo = self.repo._funcionarios[-1]
+        self.assertEqual((novo["prontuario"], novo["unidade"]), ("99001", "SMA"))
+
+    def test_cadastrar_unidade_e_usuario(self):
+        html = self.cliente.post("/cadastros/unidades/novo", data={"nome": "Prefeitura", "ativo": "on"},
+                                 headers=HX).get_data(as_text=True)
+        self.assertIn("Prefeitura", html)
+        self.assertIn("Unidade cadastrada", html)
+        html = self.cliente.post("/cadastros/usuarios/novo", headers=HX, data={
+            "nome": "Carla", "login": "carla", "perfil": "RH", "senha": "segredo1", "ativo": "on",
+        }).get_data(as_text=True)
+        self.assertIn("Carla", html)
+        self.assertIn("Usuario cadastrado", html)
+        self.assertTrue(self.repo._usuarios[-1]["hash"].startswith(("scrypt", "pbkdf2")))
+
+    def test_cadastro_respeita_a_busca_da_tela(self):
+        # O admin estava filtrando por "pau"; depois de cadastrar, a lista continua filtrada.
+        html = self.cliente.post("/cadastros/funcionarios/novo", headers=HX,
+                                 data={**self.DADOS_FUNC, "voltar": "/cadastros/funcionarios?q=pau"}).get_data(as_text=True)
+        self.assertIn("Paulo Plantao", html)
+        self.assertNotIn("Zelia Nova", html)
+        self.assertIn("1 de 4 funcionário(s)", html)
+
+    def test_erros_de_cadastro_mantem_o_modal_com_a_mensagem(self):
+        casos = (
+            ("funcionarios", {**self.DADOS_FUNC, "prontuario": "25755"}, "ja esta em uso", 3),
+            ("funcionarios", {**self.DADOS_FUNC, "nome": ""}, "Informe o nome do funcionario", 3),
+            ("unidades", {"nome": "detrán"}, "Ja existe uma unidade", 2),
+            ("unidades", {"nome": " "}, "Informe o nome da unidade", 2),
+            ("usuarios", {"nome": "X", "login": "flavio", "perfil": "RH", "senha": "segredo1"}, "ja esta em uso", 4),
+            ("usuarios", {"nome": "X", "login": "x", "perfil": "RH", "senha": ""}, "senha inicial", 4),
+            ("usuarios", {"nome": "X", "login": "x", "perfil": "RH", "senha": "123"}, "ao menos 6", 4),
+        )
+        for chave, dados, mensagem, quantos in casos:
+            resposta = self.cliente.post(f"/cadastros/{chave}/novo", data=dados, headers=HX)
+            html = resposta.get_data(as_text=True)
+            self.assertNotIn("HX-Retarget", resposta.headers, (chave, mensagem))
+            self.assertIn(mensagem, html, (chave, mensagem))
+            self.assertIn(f'hx-post="/cadastros/{chave}/novo"', html, (chave, mensagem))
+            total = {"funcionarios": self.repo._funcionarios, "unidades": self.repo._unidades,
+                     "usuarios": self.repo._usuarios}[chave]
+            self.assertEqual(len(total), quantos, (chave, mensagem))
+
+    def test_erro_mantem_o_que_foi_digitado(self):
+        html = self.cliente.post("/cadastros/funcionarios/novo", headers=HX,
+                                 data={**self.DADOS_FUNC, "prontuario": "25755"}).get_data(as_text=True)
+        self.assertIn('value="Zelia Nova"', html)
+        self.assertIn('value="Fiscal"', html)
+
+    # ------------------------------------------------------------------ editar
+    def test_editar_abre_preenchido(self):
+        html = self.cliente.get("/cadastros/funcionarios/30/editar", headers=HX).get_data(as_text=True)
+        self.assertIn('value="Paulo Plantao"', html)
+        self.assertIn('value="70001"', html)
+        self.assertIn('<option value="12" selected>', html)
+        self.assertIn('<option value="18" selected>', html)
+        self.assertIn('hx-post="/cadastros/funcionarios/30/editar"', html)
+        html = self.cliente.get("/cadastros/usuarios/2/editar", headers=HX).get_data(as_text=True)
+        self.assertIn('value="flavio"', html)
+        self.assertIn('<option value="RH" selected>', html)
+        self.assertIn("manter a atual", html)
+        self.assertNotIn(' required placeholder="manter', html)
+
+    def test_editar_atualiza_e_devolve_a_lista(self):
+        resposta = self.cliente.post(
+            "/cadastros/funcionarios/30/editar", headers=HX,
+            data={**self.DADOS_FUNC, "nome": "Paulo Renomeado", "prontuario": "70001"})
+        self.assertEqual(resposta.headers["HX-Trigger"], "modal-fechar")
+        html = resposta.get_data(as_text=True)
+        self.assertIn("Paulo Renomeado", html)
+        self.assertIn("Funcionario atualizado", html)
+        self.assertEqual(len(self.repo._funcionarios), 3)
+        self.assertEqual(self.repo._funcionarios[2]["nome"], "Paulo Renomeado")
+
+    def test_editar_usuario_sem_senha_mantem_a_atual(self):
+        antes = self.repo._usuarios[1]["hash"]
+        self.cliente.post("/cadastros/usuarios/2/editar", headers=HX, data={
+            "nome": "Flavio G.", "login": "flavio", "perfil": "RH", "senha": "", "ativo": "on"})
+        self.assertEqual(self.repo._usuarios[1]["nome"], "Flavio G.")
+        self.assertEqual(self.repo._usuarios[1]["hash"], antes)
+
+    def test_editar_o_proprio_perfil_de_admin_e_recusado(self):
+        html = self.cliente.post("/cadastros/usuarios/1/editar", headers=HX, data={
+            "nome": "Alexandre Raia", "login": "alexandre", "perfil": "RH", "ativo": "on"}).get_data(as_text=True)
+        self.assertIn("proprio acesso de administrador", html)
+        self.assertEqual(self.repo._usuarios[0]["perfil"], "Administrador")
+
+    def test_unidade_pode_ser_renomeada_para_o_mesmo_nome(self):
+        html = self.cliente.post("/cadastros/unidades/19/editar", headers=HX,
+                                 data={"nome": "SMA", "ativo": "on"}).get_data(as_text=True)
+        self.assertIn("Unidade atualizada", html)
+
+    def test_unidade_e_funcionario_inativos_saem_do_formulario_de_cadastro(self):
+        self.cliente.post("/cadastros/unidades/19/situacao", data={"ativo": "0"}, headers=HX)
+        novo = self.cliente.get("/cadastros/funcionarios/novo", headers=HX).get_data(as_text=True)
+        self.assertNotIn(">SMA<", novo)
+        self.assertIn(">Detran<", novo)
+        # Quem ja pertence a uma unidade inativa continua vendo a dele ao editar.
+        self.cliente.post("/cadastros/funcionarios/30/editar", headers=HX,
+                          data={**self.DADOS_FUNC, "prontuario": "70001", "unidade_id": "18"})
+        self.cliente.post("/cadastros/unidades/18/situacao", data={"ativo": "0"}, headers=HX)
+        editar = self.cliente.get("/cadastros/funcionarios/30/editar", headers=HX).get_data(as_text=True)
+        self.assertIn('<option value="18" selected>', editar)
+
+    def test_funcionario_inativo_nao_e_oferecido_para_lancar(self):
+        self.cliente.post("/cadastros/funcionarios/30/situacao", data={"ativo": "0"}, headers=HX)
+        self.cliente.get("/logout")
+        self.entrar("flavio")
+        html = self.cliente.get("/lancamentos/novo", headers=HX).get_data(as_text=True)
+        self.assertNotIn("Paulo Plantao", html)
+        self.assertIn("Anderson", html)
+
+    def test_usuario_inativo_nao_entra(self):
+        self.cliente.post("/cadastros/usuarios/3/situacao", data={"ativo": "0"}, headers=HX)
+        self.cliente.get("/logout")
+        resposta = self.cliente.post("/login", data={"login": "fernando", "senha": "senha123"},
+                                     follow_redirects=True)
+        self.assertIn("inativo", resposta.get_data(as_text=True).lower())
+
+    # ---------------------------------------------------------------- seguranca
+    def test_so_o_admin_usa_estas_rotas(self):
+        for login in ("flavio", "fernando", "veridiana"):
+            self.cliente.get("/logout")
+            self.entrar(login)
+            for metodo, rota in (
+                ("get", "/cadastros/funcionarios/novo"), ("post", "/cadastros/funcionarios/novo"),
+                ("get", "/cadastros/unidades/18/editar"), ("post", "/cadastros/unidades/19/excluir"),
+                ("post", "/cadastros/usuarios/3/situacao"), ("get", "/cadastros/usuarios"),
+            ):
+                resposta = getattr(self.cliente, metodo)(rota)
+                self.assertEqual(resposta.status_code, 403, (login, metodo, rota))
+        self.assertEqual(len(self.repo._unidades), 2)
+
+    def test_voltar_de_fora_da_tela_e_ignorado(self):
+        for ruim in ("https://evil.example/", "//evil.example/", "/lancamentos/", "/cadastros/unidades"):
+            resposta = self.cliente.post("/cadastros/funcionarios/novo", data={
+                **self.DADOS_FUNC, "prontuario": f"x{abs(hash(ruim)) % 1000}", "voltar": ruim})
+            self.assertEqual(resposta.status_code, 302, ruim)
+            self.assertTrue(resposta.headers["Location"].endswith("/cadastros/funcionarios"), ruim)
+
+    def test_registro_inexistente_da_404(self):
+        self.assertEqual(self.cliente.get("/cadastros/usuarios/999/editar").status_code, 404)
+        self.assertEqual(self.cliente.post("/cadastros/usuarios/999/excluir").status_code, 404)
+
+
+class TestNormaliza(unittest.TestCase):
+    def test_ignora_acento_caixa_e_nulo(self):
+        self.assertEqual(normaliza("Plantão JOSÉ"), "plantao jose")
+        self.assertEqual(normaliza(None), "")
 
 
 class TestPlantonista(BaseWeb):
@@ -918,7 +1349,7 @@ class TestPlantonista(BaseWeb):
 
     def test_cadastro_grava_a_jornada(self):
         self.entrar("alexandre")
-        self.cliente.post("/cadastros/funcionarios/salvar", data={
+        self.cliente.post("/cadastros/funcionarios/novo", data={
             "nome": "Novo", "prontuario": "999", "jornada_horas": "12", "ativo": "on"})
         self.assertEqual(self.repo.funcionario_gravado["jornada_horas"], 12)
 

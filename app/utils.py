@@ -1,9 +1,16 @@
 """Conversoes de hora, data e pequenos auxiliares de formulario."""
 import re
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
 
 _HHMM = re.compile(r"^(\d{1,3})\s*[:hH]\s*(\d{1,2})$")
 _ONLY_H = re.compile(r"^(\d{1,3})\s*[hH]?$")
+
+
+def normaliza(texto):
+    """Minusculas e sem acento, para a busca ignorar as duas coisas."""
+    base = unicodedata.normalize("NFKD", str(texto or ""))
+    return "".join(c for c in base if not unicodedata.combining(c)).casefold()
 
 
 def ident(valor):

@@ -132,7 +132,7 @@ form .linha {
 .campo.largo { flex: 2; }
 label { font-size: 13px; color: var(--suave); font-weight: 600; }
 input[type=text], input[type=password], input[type=date], input[type=number],
-select, textarea {
+input[type=search], select, textarea {
   padding: 8px 9px;
   border: 1px solid var(--borda);
   border-radius: 6px;
@@ -266,7 +266,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
    estreita volta a quebrar em linhas, para nada ficar espremido. */
 .filtros-linha { flex-wrap: nowrap; gap: 8px; }
 .filtros-linha .campo { min-width: 0; flex: 1 1 0; }
-.filtros-linha .campo.estreito { flex: 0 0 auto; min-width: 0; }
+.filtros-linha .campo.estreito, .filtros-linha .campo.auto { flex: 0 0 auto; min-width: 0; }
 .filtros-linha select, .filtros-linha input {
   min-width: 0; width: 100%; height: 38px; box-sizing: border-box;
 }
@@ -287,7 +287,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 @media (max-width: 1100px) {
   .filtros-linha { flex-wrap: wrap; }
   .filtros-linha .campo { flex: 1 1 140px; }
-  .filtros-linha .campo.estreito, .filtros-linha .acao-icone { flex: 0 0 auto; }
+  .filtros-linha .campo.estreito, .filtros-linha .campo.auto, .filtros-linha .acao-icone { flex: 0 0 auto; }
 }
 
 /* ---------------------------------------------- botoes pequenos so de icone */
@@ -313,3 +313,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   tr.grupo { break-after: avoid; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ------------------------------------------------------ cadastros (admin) */
+tr.inativo td { color: var(--suave); }
+tr.inativo td strong { color: var(--suave); }

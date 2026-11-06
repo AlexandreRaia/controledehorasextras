@@ -1,0 +1,28 @@
+{% import "macros.html" as m %}
+<h1>{{ 'Editar unidade' if item else 'Nova unidade' }}</h1>
+{% if modal %}{{ m.avisos() }}{% endif %}
+
+<form class="cartao" method="post" action="{{ acao }}"
+      {% if modal %}hx-post="{{ acao }}" hx-target="#modal-corpo" hx-swap="innerHTML"
+      hx-disabled-elt="find button[type=submit]"{% endif %}>
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <div class="linha">
+    <div class="campo">
+      <label for="u_nome">Nome da unidade</label>
+      <input type="text" id="u_nome" name="nome" required value="{{ form.get('nome') or '' }}">
+    </div>
+    <div class="campo checa auto">
+      <input type="checkbox" id="u_ativo" name="ativo" {% if form.get('ativo') %}checked{% endif %}>
+      <label for="u_ativo">Ativa</label>
+    </div>
+  </div>
+  <div class="acoes">
+    <button class="botao so-icone" type="submit" title="Salvar" aria-label="Salvar">{{ m.icone('salvar') }}</button>
+    {% if modal %}
+    <button class="botao secundario so-icone" type="button" title="Cancelar" aria-label="Cancelar"
+            onclick="document.getElementById('modal').close()">{{ m.icone('nao') }}</button>
+    {% else %}
+    <a class="botao secundario so-icone" href="{{ voltar }}" title="Cancelar" aria-label="Cancelar">{{ m.icone('nao') }}</a>
+    {% endif %}
+  </div>
+</form>

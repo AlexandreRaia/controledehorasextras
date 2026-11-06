@@ -181,7 +181,7 @@ instalação nova basta rodar o script para ter os usuários de acesso.
 
 | Tabela | Conteúdo |
 |---|---|
-| unidades | nome |
+| unidades | nome e se está ativa |
 | funcionarios | nome, prontuário (único), telefone, cargo, unidade, ativo |
 | usuarios | nome, login (único, sem diferenciar maiúsculas), hash da senha, perfil, ativo |
 | lancamentos | funcionário, prontuário, data, entrada e saída em segundos, excedente, situação, hora corrida, observação do RH, parecer do gestor e a trilha de quem lançou e decidiu |
@@ -234,7 +234,24 @@ aprovações e os demais perfis para a lista de lançamentos.
   mesmo período, e o nome do arquivo mostra as datas.
 - **Fechamento**: situação dos doze meses do ano, com o que ainda espera
   decisão, o botão de fechar para o Gestor e o de reabrir para o Administrador.
-- **Cadastros**: unidades, funcionários e usuários.
+- **Cadastros** (só o Administrador): funcionários, unidades e usuários, todos no
+  mesmo padrão:
+  - **Lista com busca no topo.** A busca ignora acento e maiúsculas e atualiza a
+    lista enquanto se digita, junto com os filtros de cada tela (unidade e
+    situação nos funcionários, perfil e situação nos usuários, situação nas
+    unidades).
+  - **Adicionar** (ícone **+**) e **Editar** (lápis) abrem o formulário em um modal.
+    Ao salvar, o modal fecha e só a lista é atualizada, com a mesma busca, sem
+    recarregar a página. Sem JavaScript, os mesmos botões levam a uma página própria.
+  - **Excluir** só aparece para quem não tem registros vinculados: funcionário com
+    lançamentos, unidade com funcionários ou lançamentos, e usuário que já lançou,
+    decidiu ou fechou um mês ficam só com **Inativar** (e depois **Reativar**). O
+    servidor recusa a exclusão mesmo que alguém force o pedido.
+  - Inativo deixa de ser oferecido: funcionário inativo não aparece para lançar,
+    unidade inativa não aparece para novos funcionários e usuário inativo não entra.
+    O histórico continua intacto.
+  - O administrador não pode excluir nem inativar a si mesmo, e o sistema mantém
+    sempre ao menos um administrador ativo.
 
 Os botões do gestor atualizam só o bloco do funcionário, o aviso e o total
 geral, sem recarregar a página nem perder a rolagem. Isso usa o htmx, que está

@@ -81,6 +81,10 @@ ALTER TABLE funcionarios
     CHECK (jornada_horas IN (8, 12));
 ALTER TABLE lancamentos
     ADD COLUMN IF NOT EXISTS fora_escala BOOLEAN NOT NULL DEFAULT FALSE;
+-- Unidade inativa deixa de aparecer ao cadastrar funcionarios, mas o historico
+-- continua apontando para ela.
+ALTER TABLE unidades
+    ADD COLUMN IF NOT EXISTS ativo BOOLEAN NOT NULL DEFAULT TRUE;
 -- Excedente digitado pelo RH. Nulo significa "usar o calculado"; excedidas_seg
 -- guarda sempre o valor em vigor, manual ou calculado.
 ALTER TABLE lancamentos

@@ -1,0 +1,56 @@
+{% import "macros.html" as m %}
+
+{# Botao de adicionar: abre o formulario de cadastro no modal. #}
+{% macro novo(chave, voltar) %}
+  <a class="botao ok so-icone" href="{{ url_for('cadastros.' ~ chave ~ '_novo', voltar=voltar) }}"
+     hx-get="{{ url_for('cadastros.' ~ chave ~ '_novo', voltar=voltar) }}"
+     hx-target="#modal-corpo" hx-swap="innerHTML"
+     title="Novo cadastro" aria-label="Novo cadastro">{{ m.icone('mais') }}</a>
+{% endmacro %}
+
+{# Um botao que age sobre o registro (excluir, inativar, reativar) e atualiza a lista. #}
+{% macro acao(chave, rota, item, voltar, icone, rotulo, classe, confirma=none, ativo=none, dica=none) %}
+  {% set destino = url_for('cadastros.' ~ chave ~ '_' ~ rota, row_id=item.id) %}
+  <form method="post" action="{{ destino }}"
+        hx-post="{{ destino }}" hx-target="#lista" hx-swap="outerHTML" hx-disabled-elt="find button"
+        {% if confirma %}hx-confirm="{{ confirma }}"{% endif %}>
+    <input type="hidden" name="voltar" value="{{ voltar }}">
+    {% if ativo is not none %}<input type="hidden" name="ativo" value="{{ ativo }}">{% endif %}
+    <button class="botao mini {{ classe }} so-icone" type="submit"
+            title="{{ dica or rotulo }}" aria-label="{{ rotulo }}">{{ m.icone(icone) }}</button>
+  </form>
+{% endmacro %}
+
+{#
+  Botoes de cada registro. Editar abre o modal. Excluir so existe quando nada esta
+  vinculado; com vinculos o registro so pode ser inativado (e reativado depois).
+  `protegido` esconde excluir e inativar, para o admin nao se trancar para fora.
+#}
+{% macro acoes(chave, item, voltar, protegido=false) %}
+  <div class="acoes">
+    <a class="botao mini secundario so-icone"
+       href="{{ url_for('cadastros.' ~ chave ~ '_editar', row_id=item.id, voltar=voltar) }}"
+       hx-get="{{ url_for('cadastros.' ~ chave ~ '_editar', row_id=item.id, voltar=voltar) }}"
+       hx-target="#modal-corpo" hx-swap="innerHTML"
+       title="Editar" aria-label="Editar">{{ m.icone('editar') }}</a>
+    {% if not item.ativo %}
+      {{ acao(chave, 'situacao', item, voltar, 'reabrir', 'Reativar', 'ok', ativo=1) }}
+    {% endif %}
+    {% if not protegido %}
+      {% if item.vinculos == 0 %}
+        {{ acao(chave, 'excluir', item, voltar, 'lixeira', 'Excluir', 'perigo',
+                confirma='Excluir ' ~ item.nome ~ '?') }}
+      {% elif item.ativo %}
+        {{ acao(chave, 'situacao', item, voltar, 'inativar', 'Inativar', 'perigo',
+                confirma='Inativar ' ~ item.nome ~ '? O histórico é mantido, mas o cadastro deixa de ser oferecido para novos registros.',
+                ativo=0, dica='Inativar (tem ' ~ item.vinculos ~ ' registro(s) vinculado(s), por isso não pode ser excluído)') }}
+      {% endif %}
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# Etiqueta de situacao: ativo ou inativo. #}
+{% macro situacao(item) %}
+  {% if item.ativo %}<span class="etiqueta e-aprovado">Ativo</span>
+  {% else %}<span class="etiqueta e-neutro">Inativo</span>{% endif %}
+{% endmacro %}

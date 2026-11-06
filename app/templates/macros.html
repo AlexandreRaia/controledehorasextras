@@ -13,6 +13,17 @@
   </div>
 {% endmacro %}
 
+{# Mensagens da sessao (sucesso, erro) dentro de uma regiao que o htmx troca. #}
+{% macro avisos() %}
+  {% with mensagens = get_flashed_messages(with_categories=true) %}
+    {% if mensagens %}
+    <div class="avisos">
+      {% for categoria, texto in mensagens %}<div class="aviso aviso-{{ categoria }}">{{ texto }}</div>{% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+{% endmacro %}
+
 {# Icones em linha; herdam a cor do texto da etiqueta ou do botao. #}
 {% macro icone(nome) -%}
   <svg class="icone" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor"
@@ -20,6 +31,7 @@
   {%- if nome == 'ok' %}<path d="M3 8.5l3.2 3.2L13 4.8"/>
   {%- elif nome == 'nao' %}<path d="M4 4l8 8M12 4l-8 8"/>
   {%- elif nome == 'editar' %}<path d="M10.8 2.7l2.5 2.5-7.6 7.6-3.2.7.7-3.2z" stroke-width="1.8"/><path d="M9.3 4.2l2.5 2.5" stroke-width="1.8"/>
+  {%- elif nome == 'inativar' %}<circle cx="8" cy="8" r="5.6" stroke-width="1.7"/><path d="M4.1 11.9l7.8-7.8" stroke-width="1.7"/>
   {%- elif nome == 'salvar' %}<path d="M2.8 2.5h8L13.2 5v8.5H2.8z M5 2.5V6h5V2.5 M5 13.5V9.5h6v4" stroke-width="1.7"/>
   {%- elif nome == 'voltar' %}<path d="M6.6 3L2.6 8l4 5M3 8h10.4" stroke-width="1.9"/>
   {%- elif nome == 'limpar' %}<circle cx="8" cy="8" r="5.6" stroke-width="1.7"/><path d="M5.9 5.9l4.2 4.2M10.1 5.9l-4.2 4.2" stroke-width="1.7"/>

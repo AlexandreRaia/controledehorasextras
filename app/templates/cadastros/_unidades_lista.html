@@ -1,0 +1,31 @@
+{% import "macros.html" as m %}
+{% import "cadastros/_comum.html" as c %}
+{# Regiao que a busca, o cadastro, a edicao e as acoes trocam, sem recarregar a pagina. #}
+<div id="lista">
+  {% if avisos_na_lista %}{{ m.avisos() }}{% endif %}
+  <p class="dica periodo">{{ itens | length }} de {{ total }} unidade(s)</p>
+  <div class="cartao tabela-rolagem">
+    <table>
+      <thead>
+        <tr>
+          <th>Nome</th><th class="num" title="Funcionários cadastrados nesta unidade">Funcionários</th>
+          <th>Situação</th><th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in itens %}
+        <tr {% if not u.ativo %}class="inativo"{% endif %}>
+          <td>{{ u.nome }}</td>
+          <td class="num">{{ u.n_funcionarios or '—' }}</td>
+          <td>{{ c.situacao(u) }}</td>
+          <td>{{ c.acoes('unidades', u, voltar) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="vazio">
+          {{ 'Nenhuma unidade encontrada neste filtro.' if total else 'Nenhuma unidade cadastrada.' }}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,60 +1,37 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{% import "cadastros/_comum.html" as c %}
 {% block titulo %}Unidades{% endblock %}
 {% block conteudo %}
 
 <h1>Unidades</h1>
-<p class="sub">Locais aos quais os funcionários são vinculados.</p>
+<p class="sub">
+  Locais aos quais os funcionários são vinculados. Uma unidade com funcionários ou lançamentos
+  não pode ser excluída: inative, e ela deixa de ser oferecida para novos funcionários.
+</p>
 
-<form class="cartao" method="post" action="{{ url_for('cadastros.unidade_salvar') }}">
-  <input type="hidden" name="id" id="unidade_id">
-  <div class="linha">
-    <div class="campo">
-      <label for="nome">Nome da unidade</label>
-      <input type="text" id="nome" name="nome" required>
-    </div>
+<form class="cartao filtros filtros-linha" method="get" action="{{ url_for('cadastros.unidades') }}"
+      hx-get="{{ url_for('cadastros.unidades') }}" hx-trigger="input delay:300ms, change, submit"
+      hx-target="#lista" hx-swap="outerHTML" hx-sync="this:replace">
+  <div class="campo">
+    <label for="q">Buscar</label>
+    <input type="search" id="q" name="q" value="{{ q }}" autocomplete="off" placeholder="Nome da unidade">
   </div>
-  <div class="acoes">
-    <button class="botao so-icone" type="submit" title="Salvar" aria-label="Salvar">{{ m.icone('salvar') }}</button>
-    <button class="botao secundario so-icone" type="button" title="Limpar o formulário"
-            aria-label="Limpar o formulário" onclick="limpar()">{{ m.icone('limpar') }}</button>
+  <div class="campo estreito">
+    <label for="situacao">Situação</label>
+    <select id="situacao" name="situacao">
+      <option value="">Todas</option>
+      <option value="ativos" {% if situacao == 'ativos' %}selected{% endif %}>Ativas</option>
+      <option value="inativos" {% if situacao == 'inativos' %}selected{% endif %}>Inativas</option>
+    </select>
   </div>
+  <div class="campo auto">
+    <button class="botao so-icone" type="submit" title="Filtrar" aria-label="Filtrar">{{ m.icone('filtro') }}</button>
+  </div>
+  <div class="campo auto">{{ c.novo('unidades', voltar) }}</div>
 </form>
 
-<div class="cartao tabela-rolagem">
-  <table>
-    <thead><tr><th>Nome</th><th>Ações</th></tr></thead>
-    <tbody>
-      {% for u in itens %}
-      <tr>
-        <td>{{ u.nome }}</td>
-        <td>
-          <div class="acoes">
-            <button class="botao mini secundario so-icone" type="button" title="Editar" aria-label="Editar"
-                    onclick="editar({{ u.id }}, {{ u.nome | tojson }})">{{ m.icone('editar') }}</button>
-            <form method="post" action="{{ url_for('cadastros.unidade_excluir', row_id=u.id) }}"
-                  onsubmit="return confirm('Excluir a unidade {{ u.nome }}?');">
-              <button class="botao mini perigo so-icone" type="submit" title="Excluir" aria-label="Excluir">{{ m.icone('lixeira') }}</button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="2" class="vazio">Nenhuma unidade cadastrada.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% include "cadastros/_unidades_lista.html" %}
 
-<script>
-function editar(id, nome) {
-  document.getElementById('unidade_id').value = id;
-  document.getElementById('nome').value = nome;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-function limpar() {
-  document.getElementById('unidade_id').value = '';
-  document.getElementById('nome').value = '';
-}
-</script>
+<dialog id="modal" class="modal"><div id="modal-corpo"></div></dialog>
 {% endblock %}

@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block titulo %}Cadastro{% endblock %}
+{% block conteudo %}
+{# Sem JavaScript o formulario abre nesta pagina, em vez de no modal. #}
+{% include modelo_form %}
+{% endblock %}

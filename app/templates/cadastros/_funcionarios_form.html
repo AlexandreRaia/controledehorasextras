@@ -1,0 +1,58 @@
+{% import "macros.html" as m %}
+<h1>{{ 'Editar funcionário' if item else 'Novo funcionário' }}</h1>
+{% if modal %}{{ m.avisos() }}{% endif %}
+
+<form class="cartao" method="post" action="{{ acao }}"
+      {% if modal %}hx-post="{{ acao }}" hx-target="#modal-corpo" hx-swap="innerHTML"
+      hx-disabled-elt="find button[type=submit]"{% endif %}>
+  <input type="hidden" name="voltar" value="{{ voltar }}">
+  <div class="linha">
+    <div class="campo">
+      <label for="f_nome">Nome</label>
+      <input type="text" id="f_nome" name="nome" required value="{{ form.get('nome') or '' }}">
+    </div>
+    <div class="campo estreito">
+      <label for="f_prontuario">Prontuário</label>
+      <input type="text" id="f_prontuario" name="prontuario" required value="{{ form.get('prontuario') or '' }}">
+    </div>
+    <div class="campo estreito">
+      <label for="f_telefone">Telefone</label>
+      <input type="text" id="f_telefone" name="telefone" value="{{ form.get('telefone') or '' }}">
+    </div>
+  </div>
+  <div class="linha">
+    <div class="campo">
+      <label for="f_cargo">Cargo</label>
+      <input type="text" id="f_cargo" name="cargo" placeholder="Motorista" value="{{ form.get('cargo') or '' }}">
+    </div>
+    <div class="campo">
+      <label for="f_unidade">Unidade</label>
+      <select id="f_unidade" name="unidade_id">
+        <option value="">Sem unidade</option>
+        {% for u in unidades %}
+        <option value="{{ u.id }}" {% if form.get('unidade_id') | string == u.id | string %}selected{% endif %}>{{ u.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo estreito">
+      <label for="f_jornada">Jornada</label>
+      <select id="f_jornada" name="jornada_horas">
+        <option value="8">8 horas</option>
+        <option value="12" {% if form.get('jornada_horas') | string == '12' %}selected{% endif %}>Plantonista 12x36</option>
+      </select>
+    </div>
+    <div class="campo checa">
+      <input type="checkbox" id="f_ativo" name="ativo" {% if form.get('ativo') %}checked{% endif %}>
+      <label for="f_ativo">Ativo</label>
+    </div>
+  </div>
+  <div class="acoes">
+    <button class="botao so-icone" type="submit" title="Salvar" aria-label="Salvar">{{ m.icone('salvar') }}</button>
+    {% if modal %}
+    <button class="botao secundario so-icone" type="button" title="Cancelar" aria-label="Cancelar"
+            onclick="document.getElementById('modal').close()">{{ m.icone('nao') }}</button>
+    {% else %}
+    <a class="botao secundario so-icone" href="{{ voltar }}" title="Cancelar" aria-label="Cancelar">{{ m.icone('nao') }}</a>
+    {% endif %}
+  </div>
+</form>

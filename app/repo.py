@@ -53,19 +53,33 @@ class Repo:
         self.db.cria_tabelas()
 
     # -------------------------------------------------------------- unidades
-    def unidades(self):
-        return self.db.todos("SELECT id, nome FROM unidades ORDER BY nome")
+    @staticmethod
+    def _map_unidade(r):
+        return {"id": r["id"], "nome": r["nome"], "ativo": r["ativo"]}
+
+    def unidades(self, somente_ativas=False):
+        filtro = " WHERE ativo" if somente_ativas else ""
+        rows = self.db.todos("SELECT id, nome, ativo FROM unidades" + filtro + " ORDER BY nome")
+        return [self._map_unidade(r) for r in rows]
 
     def unidade(self, row_id):
-        return self._existe(
-            self.db.um("SELECT id, nome FROM unidades WHERE id = %s", (row_id,))
+        r = self._existe(
+            self.db.um("SELECT id, nome, ativo FROM unidades WHERE id = %s", (row_id,))
+        )
+        return self._map_unidade(r)
+
+    def unidade_criar(self, nome, ativo=True):
+        return self.db.um(
+            "INSERT INTO unidades (nome, ativo) VALUES (%s, %s) RETURNING id", (nome, ativo)
         )
 
-    def unidade_criar(self, nome):
-        return self.db.um("INSERT INTO unidades (nome) VALUES (%s) RETURNING id", (nome,))
+    def unidade_atualizar(self, row_id, nome, ativo=True):
+        self.db.executa(
+            "UPDATE unidades SET nome = %s, ativo = %s WHERE id = %s", (nome, ativo, row_id)
+        )
 
-    def unidade_atualizar(self, row_id, nome):
-        self.db.executa("UPDATE unidades SET nome = %s WHERE id = %s", (nome, row_id))
+    def unidade_definir_ativo(self, row_id, ativo):
+        self.db.executa("UPDATE unidades SET ativo = %s WHERE id = %s", (ativo, row_id))
 
     def unidade_excluir(self, row_id):
         self.db.executa("DELETE FROM unidades WHERE id = %s", (row_id,))
@@ -129,6 +143,9 @@ class Repo:
             self._valores_funcionario(dados) + (row_id,),
         )
 
+    def funcionario_definir_ativo(self, row_id, ativo):
+        self.db.executa("UPDATE funcionarios SET ativo = %s WHERE id = %s", (ativo, row_id))
+
     def funcionario_excluir(self, row_id):
         self.db.executa("DELETE FROM funcionarios WHERE id = %s", (row_id,))
 
@@ -176,8 +193,47 @@ class Repo:
             campos["senha_hash"] = dados["hash"]
         self._atualiza("usuarios", row_id, campos)
 
+    def usuario_definir_ativo(self, row_id, ativo):
+        self.db.executa("UPDATE usuarios SET ativo = %s WHERE id = %s", (ativo, row_id))
+
     def usuario_excluir(self, row_id):
         self.db.executa("DELETE FROM usuarios WHERE id = %s", (row_id,))
+
+    # --------------------------------------------------------------- vinculos
+    # Registros que impedem excluir: so se pode inativar. Cada metodo devolve as
+    # contagens de todos de uma vez, para a lista nao fazer uma consulta por linha.
+    def vinculos_funcionarios(self):
+        """{prontuario: quantidade de lancamentos}."""
+        rows = self.db.todos(
+            "SELECT prontuario, count(*)::int AS n FROM lancamentos GROUP BY prontuario"
+        )
+        return {r["prontuario"]: r["n"] for r in rows}
+
+    def vinculos_unidades(self):
+        """{id: {"funcionarios": n, "lancamentos": n}}; o lancamento guarda o nome."""
+        rows = self.db.todos(
+            "SELECT u.id,"
+            " (SELECT count(*)::int FROM funcionarios f WHERE f.unidade_id = u.id) AS funcionarios,"
+            " (SELECT count(*)::int FROM lancamentos l WHERE l.unidade = u.nome) AS lancamentos"
+            " FROM unidades u"
+        )
+        return {r["id"]: {"funcionarios": r["funcionarios"], "lancamentos": r["lancamentos"]}
+                for r in rows}
+
+    def vinculos_usuarios(self):
+        """{nome: quantidade de lancamentos e fechamentos que a pessoa fez}."""
+        rows = self.db.todos(
+            "SELECT nome, sum(n)::int AS n FROM ("
+            " SELECT lancado_por AS nome, count(*) AS n FROM lancamentos"
+            "  WHERE lancado_por <> '' GROUP BY 1"
+            " UNION ALL SELECT decidido_por, count(*) FROM lancamentos"
+            "  WHERE decidido_por <> '' GROUP BY 1"
+            " UNION ALL SELECT fechado_por, count(*) FROM fechamentos GROUP BY 1"
+            " UNION ALL SELECT reaberto_por, count(*) FROM fechamentos"
+            "  WHERE reaberto_por <> '' GROUP BY 1"
+            ") t GROUP BY nome"
+        )
+        return {r["nome"]: r["n"] for r in rows}
 
     # ------------------------------------------------------------ lancamentos
     def _map_lancamento(self, r):

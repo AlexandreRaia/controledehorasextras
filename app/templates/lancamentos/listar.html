@@ -53,19 +53,5 @@
 {% if pode_lancar %}
 {# O formulario de lancar e editar abre aqui, sem sair da lista. #}
 <dialog id="modal" class="modal"><div id="modal-corpo"></div></dialog>
-<script>
-  // O htmx dispara afterSwap no elemento que recebeu o conteudo (#modal-corpo),
-  // e nao no link; por isso o ouvinte fica no corpo da pagina.
-  document.body.addEventListener('htmx:afterSwap', (e) => {
-    const modal = document.getElementById('modal');
-    if (e.target.id === 'modal-corpo' && !modal.open) modal.showModal();
-  });
-  // O servidor manda fechar depois de salvar (cabecalho HX-Trigger).
-  document.body.addEventListener('modal-fechar', () => document.getElementById('modal').close());
-  // Clicar fora da caixa tambem fecha.
-  document.getElementById('modal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) e.currentTarget.close();
-  });
-</script>
 {% endif %}
 {% endblock %}

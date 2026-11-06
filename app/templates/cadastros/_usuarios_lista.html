@@ -1,0 +1,34 @@
+{% import "macros.html" as m %}
+{% import "cadastros/_comum.html" as c %}
+{# Regiao que a busca, o cadastro, a edicao e as acoes trocam, sem recarregar a pagina. #}
+<div id="lista">
+  {% if avisos_na_lista %}{{ m.avisos() }}{% endif %}
+  <p class="dica periodo">{{ itens | length }} de {{ total }} usuário(s)</p>
+  <div class="cartao tabela-rolagem">
+    <table>
+      <thead>
+        <tr>
+          <th>Nome</th><th>Login</th><th>Perfil</th>
+          <th class="num" title="Lançamentos e fechamentos feitos pela pessoa">Atividade</th>
+          <th>Situação</th><th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in itens %}
+        <tr {% if not u.ativo %}class="inativo"{% endif %}>
+          <td>{{ u.nome }}{% if u.id == atual_id %} <span class="dica">(você)</span>{% endif %}</td>
+          <td>{{ u.login }}</td>
+          <td>{{ u.perfil }}</td>
+          <td class="num">{{ u.vinculos or '—' }}</td>
+          <td>{{ c.situacao(u) }}</td>
+          <td>{{ c.acoes('usuarios', u, voltar, protegido=(u.id == atual_id)) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="vazio">
+          {{ 'Nenhum usuário encontrado neste filtro.' if total else 'Nenhum usuário cadastrado.' }}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

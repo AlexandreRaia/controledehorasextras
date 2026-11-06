@@ -1,117 +1,50 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{% import "cadastros/_comum.html" as c %}
 {% block titulo %}Funcionários{% endblock %}
 {% block conteudo %}
 
 <h1>Funcionários</h1>
-<p class="sub">O prontuário identifica o funcionário nos lançamentos e precisa ser único.</p>
+<p class="sub">
+  O prontuário identifica o funcionário nos lançamentos e precisa ser único. Quem já tem
+  lançamentos não pode ser excluído: inative, e ele deixa de ser oferecido para novos lançamentos.
+</p>
 
-<form class="cartao" method="post" action="{{ url_for('cadastros.funcionario_salvar') }}">
-  <input type="hidden" name="id" id="f_id">
-  <div class="linha">
-    <div class="campo">
-      <label for="f_nome">Nome</label>
-      <input type="text" id="f_nome" name="nome" required>
-    </div>
-    <div class="campo estreito">
-      <label for="f_prontuario">Prontuário</label>
-      <input type="text" id="f_prontuario" name="prontuario" required>
-    </div>
-    <div class="campo estreito">
-      <label for="f_telefone">Telefone</label>
-      <input type="text" id="f_telefone" name="telefone">
-    </div>
+{# A busca atualiza a lista enquanto se digita; sem JavaScript, o botao de filtrar envia a pagina. #}
+<form class="cartao filtros filtros-linha" method="get" action="{{ url_for('cadastros.funcionarios') }}"
+      hx-get="{{ url_for('cadastros.funcionarios') }}" hx-trigger="input delay:300ms, change, submit"
+      hx-target="#lista" hx-swap="outerHTML" hx-sync="this:replace">
+  <div class="campo">
+    <label for="q">Buscar</label>
+    <input type="search" id="q" name="q" value="{{ q }}" autocomplete="off"
+           placeholder="Nome, prontuário ou cargo"
+           title="Também procura pelo telefone">
   </div>
-  <div class="linha">
-    <div class="campo">
-      <label for="f_cargo">Cargo</label>
-      <input type="text" id="f_cargo" name="cargo" placeholder="Motorista">
-    </div>
-    <div class="campo">
-      <label for="f_unidade">Unidade</label>
-      <select id="f_unidade" name="unidade_id">
-        <option value="">Sem unidade</option>
-        {% for u in unidades %}
-        <option value="{{ u.id }}">{{ u.nome }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="campo estreito">
-      <label for="f_jornada">Jornada</label>
-      <select id="f_jornada" name="jornada_horas">
-        <option value="8">8 horas</option>
-        <option value="12">Plantonista 12x36</option>
-      </select>
-    </div>
-    <div class="campo checa">
-      <input type="checkbox" id="f_ativo" name="ativo" checked>
-      <label for="f_ativo">Ativo</label>
-    </div>
+  <div class="campo">
+    <label for="unidade">Unidade</label>
+    <select id="unidade" name="unidade">
+      <option value="">Todas</option>
+      <option value="sem" {% if filtros.unidade == 'sem' %}selected{% endif %}>Sem unidade</option>
+      {% for u in unidades %}
+      <option value="{{ u.id }}" {% if filtros.unidade == u.id | string %}selected{% endif %}>{{ u.nome }}</option>
+      {% endfor %}
+    </select>
   </div>
-  <div class="acoes">
-    <button class="botao so-icone" type="submit" title="Salvar" aria-label="Salvar">{{ m.icone('salvar') }}</button>
-    <button class="botao secundario so-icone" type="button" title="Limpar o formulário"
-            aria-label="Limpar o formulário" onclick="limpar()">{{ m.icone('limpar') }}</button>
+  <div class="campo estreito">
+    <label for="situacao">Situação</label>
+    <select id="situacao" name="situacao">
+      <option value="">Todas</option>
+      <option value="ativos" {% if situacao == 'ativos' %}selected{% endif %}>Ativos</option>
+      <option value="inativos" {% if situacao == 'inativos' %}selected{% endif %}>Inativos</option>
+    </select>
   </div>
+  <div class="campo auto">
+    <button class="botao so-icone" type="submit" title="Filtrar" aria-label="Filtrar">{{ m.icone('filtro') }}</button>
+  </div>
+  <div class="campo auto">{{ c.novo('funcionarios', voltar) }}</div>
 </form>
 
-<div class="cartao tabela-rolagem">
-  <table>
-    <thead>
-      <tr><th>Prontuário</th><th>Nome</th><th>Cargo</th><th>Unidade</th><th>Jornada</th>
-          <th>Telefone</th><th>Situação</th><th>Ações</th></tr>
-    </thead>
-    <tbody>
-      {% for f in itens %}
-      <tr>
-        <td>{{ f.prontuario }}</td>
-        <td>{{ f.nome }}</td>
-        <td>{{ f.cargo }}</td>
-        <td>{{ f.unidade }}</td>
-        <td>{{ 'Plantonista 12x36' if f.jornada_horas == 12 else '8 horas' }}</td>
-        <td>{{ f.telefone }}</td>
-        <td>
-          {% if f.ativo %}<span class="etiqueta e-aprovado">Ativo</span>
-          {% else %}<span class="etiqueta e-neutro">Inativo</span>{% endif %}
-        </td>
-        <td>
-          <div class="acoes">
-            <button class="botao mini secundario so-icone" type="button" title="Editar" aria-label="Editar"
-                    onclick='editar({{ f | tojson }})'>{{ m.icone('editar') }}</button>
-            <form method="post" action="{{ url_for('cadastros.funcionario_excluir', row_id=f.id) }}"
-                  onsubmit="return confirm('Excluir {{ f.nome }}?');">
-              <button class="botao mini perigo so-icone" type="submit" title="Excluir" aria-label="Excluir">{{ m.icone('lixeira') }}</button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="8" class="vazio">Nenhum funcionário cadastrado.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
+{% include "cadastros/_funcionarios_lista.html" %}
 
-<script>
-function editar(f) {
-  document.getElementById('f_id').value = f.id;
-  document.getElementById('f_nome').value = f.nome || '';
-  document.getElementById('f_prontuario').value = f.prontuario || '';
-  document.getElementById('f_telefone').value = f.telefone || '';
-  document.getElementById('f_cargo').value = f.cargo || '';
-  document.getElementById('f_unidade').value = (f.unidade_ids && f.unidade_ids[0]) || '';
-  document.getElementById('f_jornada').value = f.jornada_horas || 8;
-  document.getElementById('f_ativo').checked = !!f.ativo;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-function limpar() {
-  document.getElementById('f_id').value = '';
-  for (const campo of ['f_nome', 'f_prontuario', 'f_telefone', 'f_cargo']) {
-    document.getElementById(campo).value = '';
-  }
-  document.getElementById('f_unidade').value = '';
-  document.getElementById('f_jornada').value = '8';
-  document.getElementById('f_ativo').checked = true;
-}
-</script>
+<dialog id="modal" class="modal"><div id="modal-corpo"></div></dialog>
 {% endblock %}
