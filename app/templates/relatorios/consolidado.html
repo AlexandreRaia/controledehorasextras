@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
+{% import "relatorios/_abas.html" as t %}
 {# Subtotal de excedentes separado pela decisao do gestor, com o icone de cada uma. #}
 {% macro resumo(aprovadas, pendentes, rejeitadas, hc) %}
   <span class="resumo">
@@ -13,6 +14,7 @@
 {% block conteudo %}
 
 <h1>Relatório consolidado</h1>
+{{ t.abas('detalhado', ano, mes, de, ate, unidade, prontuario) }}
 <p class="sub nao-imprimir">
   Dia a dia de cada funcionário no período, com o subtotal separado pela decisão
   do gestor. A coluna Almoço mostra o que foi descontado por não ser hora excedente.

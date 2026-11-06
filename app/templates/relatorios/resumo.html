@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "relatorios/_abas.html" as t %}
+{% block titulo %}Relatório resumo{% endblock %}
+{% block conteudo %}
+
+<h1>Relatório resumo</h1>
+{{ t.abas('resumo', ano, mes, de, ate, unidade, prontuario) }}
+<p class="sub nao-imprimir">
+  O total de horas excedentes de cada funcionário no período. Por padrão conta só as horas
+  <strong>aprovadas</strong> pelo gestor, que são as que seguem para a folha; a coluna
+  "Aguardando decisão" mostra o que ainda falta decidir. Em Situação, escolha "Todas" para somar
+  tudo. Horas negativas (horas devidas) abatem do total.
+</p>
+
+{% if personalizado %}{{ m.faixa_fechados(fechados_no_periodo) }}{% else %}{{ m.faixa_fechado(fechamento) }}{% endif %}
+
+<form class="cartao filtros filtros-linha" method="get">
+  {{ m.seletor_mes(ano, mes) }}
+  <div class="campo estreito">
+    <label for="de">De</label>
+    <input type="date" id="de" name="de" value="{{ de }}">
+  </div>
+  <div class="campo estreito">
+    <label for="ate">Até</label>
+    <input type="date" id="ate" name="ate" value="{{ ate }}">
+  </div>
+  <div class="campo">
+    <label for="unidade">Unidade</label>
+    <select id="unidade" name="unidade">
+      <option value="">Todas</option>
+      {% for u in unidades %}
+      <option value="{{ u.nome }}" {% if u.nome == unidade %}selected{% endif %}>{{ u.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="campo">
+    <label for="prontuario">Funcionário</label>
+    <select id="prontuario" name="prontuario">
+      <option value="">Todos</option>
+      {% for f in funcionarios %}
+      <option value="{{ f.prontuario }}" {% if f.prontuario == prontuario %}selected{% endif %}>
+        {{ f.nome }} ({{ f.prontuario }})
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="campo estreito">
+    <label for="status">Situação</label>
+    <select id="status" name="status">
+      <option value="">Todas</option>
+      {% for s in ['Pendente', 'Aprovado', 'Rejeitado'] %}
+      <option value="{{ s }}" {% if s == situacao %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="campo acao-icone">
+    <button class="botao so-icone" type="submit" title="Filtrar" aria-label="Filtrar">{{ m.icone('filtro') }}</button>
+  </div>
+  <div class="campo acao-icone">
+    <a class="botao secundario so-icone" title="Baixar CSV" aria-label="Baixar CSV"
+       href="{{ url_for('relatorios.resumo_csv', ano=ano, mes=mes, unidade=unidade, status=situacao, prontuario=prontuario,
+                      de=(de or none), ate=(ate or none)) }}">{{ m.icone('baixar') }}</a>
+  </div>
+  <div class="campo acao-icone">
+    <button class="botao secundario so-icone" type="button" onclick="window.print()"
+            title="Imprimir ou salvar em PDF" aria-label="Imprimir ou salvar em PDF">{{ m.icone('imprimir') }}</button>
+  </div>
+</form>
+
+<p class="dica periodo">
+  <span class="so-impressao">{% if unidade %}Unidade: <strong>{{ unidade }}</strong> · {% endif %}</span>
+  Horas <strong>{{ {'Aprovado': 'aprovadas', 'Pendente': 'pendentes', 'Rejeitado': 'rejeitadas'}.get(situacao, 'de todas as situações') }}</strong> ·
+  Período: <strong>{{ inicio | data_br }}</strong> a <strong>{{ fim | data_br }}</strong>
+  {% if personalizado %}
+  · <a href="{{ url_for('relatorios.resumo', ano=ano, mes=mes, unidade=unidade, status=situacao, prontuario=prontuario) }}">limpar período</a>
+  {% endif %}
+</p>
+
+<div class="cartao tabela-rolagem">
+  <table class="tabela-resumo">
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>Prontuário</th>
+        <th class="num">Total de horas excedentes</th>
+        {% if mostra_pendente %}<th class="num" title="Excedentes ainda sem decisão do gestor">Aguardando decisão</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for l in linhas %}
+      <tr>
+        <td>
+          {# O nome leva ao relatorio detalhado do funcionario, no mesmo periodo e situacao. #}
+          <a class="link-discreto" title="Ver os lançamentos de {{ l.funcionario }}"
+             href="{{ url_for('relatorios.consolidado', ano=ano, mes=mes, de=(de or none), ate=(ate or none),
+                              unidade=(unidade or none), prontuario=l.prontuario, status=(situacao or none)) }}">{{ l.funcionario }}</a>
+        </td>
+        <td>{{ l.prontuario }}</td>
+        <td class="num {{ 'negativo' if l.total < 0 }}" title="{{ l.total | hdec }} horas decimais"><strong>{{ l.total | dur }}</strong></td>
+        {% if mostra_pendente %}
+        <td class="num {{ 'negativo' if l.pendente < 0 }}">{{ l.pendente | dur if l.pendente else '—' }}</td>
+        {% endif %}
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 4 if mostra_pendente else 3 }}" class="vazio">Sem dados para o filtro escolhido.</td></tr>
+      {% endfor %}
+    </tbody>
+    {% if linhas %}
+    <tfoot>
+      <tr>
+        <td colspan="2">Total geral · {{ linhas | length }} funcionário(s)</td>
+        <td class="num {{ 'negativo' if total_geral < 0 }}"><strong>{{ total_geral | dur }}</strong></td>
+        {% if mostra_pendente %}<td class="num"><strong>{{ pendente_geral | dur if pendente_geral else '—' }}</strong></td>{% endif %}
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+{# Abas dos relatorios: levam junto o periodo, a unidade e o funcionario escolhidos. #}
+{% macro abas(ativa, ano, mes, de, ate, unidade, prontuario) %}
+  {% set filtros = dict(ano=ano, mes=mes, de=(de or none), ate=(ate or none),
+                        unidade=(unidade or none), prontuario=(prontuario or none)) %}
+  <nav class="abas nao-imprimir" aria-label="Tipo de relatório">
+    <a class="aba {{ 'ativa' if ativa == 'detalhado' }}" {% if ativa == 'detalhado' %}aria-current="page"{% endif %}
+       href="{{ url_for('relatorios.consolidado', **filtros) }}">Detalhado</a>
+    <a class="aba {{ 'ativa' if ativa == 'resumo' }}" {% if ativa == 'resumo' %}aria-current="page"{% endif %}
+       href="{{ url_for('relatorios.resumo', **filtros) }}">Resumo</a>
+  </nav>
+{% endmacro %}

@@ -232,6 +232,19 @@ aprovações e os demais perfis para a lista de lançamentos.
   com só uma, ou com datas inválidas ou invertidas, o sistema avisa e usa o mês.
   Se o intervalo toca meses fechados, uma faixa lista quais são. O CSV leva o
   mesmo período, e o nome do arquivo mostra as datas.
+- **Relatório resumo** (aba "Resumo" dentro de Relatórios): uma linha por funcionário
+  com nome, prontuário e o **total de horas excedentes** do período, em ordem alfabética
+  e com o total geral no fim. Usa o mesmo período (mês e ano, ou De e Até), os mesmos
+  filtros e as mesmas saídas do relatório detalhado (CSV e impressão em PDF).
+  - Por padrão o total soma só as horas **aprovadas** pelo gestor, que são as que seguem
+    para a folha. Em **Situação**, "Todas" soma tudo e Pendente ou Rejeitado mostram
+    esses totais. A coluna **Aguardando decisão** mostra o que ainda falta decidir, para o
+    número não parecer menor do que é no início do mês.
+  - Horas negativas (horas devidas) abatem do total e aparecem em vermelho. Só entra quem
+    teve lançamento no período. Clicar no nome abre o relatório detalhado daquele
+    funcionário, no mesmo período e situação.
+  - O CSV traz nome, prontuário, unidade, a situação considerada, o total em H:MM e em
+    decimal (para a folha) e o que aguarda decisão.
 - **Fechamento**: situação dos doze meses do ano, com o que ainda espera
   decisão, o botão de fechar para o Gestor e o de reabrir para o Administrador.
 - **Cadastros** (só o Administrador): funcionários, unidades e usuários, todos no

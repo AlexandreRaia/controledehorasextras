@@ -939,6 +939,7 @@ class TestBotoesSoComIcone(BaseWeb):
         ("alexandre", "/cadastros/usuarios/2/editar", HX),
         ("alexandre", "/cadastros/usuarios/novo", {}),
         ("veridiana", "/relatorios?mes=10&ano=2026", {}),
+        ("veridiana", "/relatorios/resumo?mes=10&ano=2026", {}),
         ("fernando", "/lancamentos/novo", {}),  # 403: pagina de erro com botao
     ]
     BOTAO = re.compile(
@@ -1316,6 +1317,198 @@ class TestNormaliza(unittest.TestCase):
     def test_ignora_acento_caixa_e_nulo(self):
         self.assertEqual(normaliza("Plantão JOSÉ"), "plantao jose")
         self.assertEqual(normaliza(None), "")
+
+
+class TestRelatorioResumo(BaseWeb):
+    """Resumo: uma linha por funcionario com o total de horas excedentes do periodo.
+
+    Dados de teste (3:30 de excedente em cada lancamento, ja com a hora corrida):
+    100 Alexandre pendente; 101 Anderson aprovado; 102 Anderson pendente.
+    """
+
+    def pede(self, query="mes=10&ano=2026", rota="/relatorios/resumo", login="veridiana"):
+        self.cliente.get("/logout")
+        self.entrar(login)
+        return self.cliente.get(f"{rota}?{query}")
+
+    @staticmethod
+    def tabela(html):
+        """As linhas do corpo da tabela como listas de texto: [[nome, prontuario, total, ...]]."""
+        corpo = html.split("<tbody>", 1)[1].split("</tbody>", 1)[0]
+        linhas = re.findall(r"<tr>(.*?)</tr>", corpo, flags=re.DOTALL)
+        return [[re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", c)).strip()
+                 for c in re.findall(r"<td[^>]*>(.*?)</td>", linha, flags=re.DOTALL)]
+                for linha in linhas]
+
+    @staticmethod
+    def rodape(html):
+        pe = html.split("<tfoot>", 1)[1].split("</tfoot>", 1)[0]
+        return [re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", c)).strip()
+                for c in re.findall(r"<td[^>]*>(.*?)</td>", pe, flags=re.DOTALL)]
+
+    # ------------------------------------------------------------- os totais
+    def test_por_padrao_soma_so_as_horas_aprovadas(self):
+        html = self.pede().get_data(as_text=True)
+        self.assertEqual(self.tabela(html), [
+            ["Alexandre P. S. Raia", "25755", "0:00", "3:30"],
+            ["Anderson", "48906", "3:30", "3:30"],
+        ])
+        self.assertEqual(self.rodape(html), ["Total geral · 2 funcionário(s)", "3:30", "7:00"])
+        self.assertIn("Horas <strong>aprovadas</strong>", html)
+        self.assertIn("Total de horas excedentes", html)
+        self.assertIn("Aguardando decisão", html)
+
+    def test_todas_as_situacoes_somam_tudo(self):
+        html = self.pede("mes=10&ano=2026&status=").get_data(as_text=True)
+        self.assertEqual(self.tabela(html), [
+            ["Alexandre P. S. Raia", "25755", "3:30", "3:30"],
+            ["Anderson", "48906", "7:00", "3:30"],
+        ])
+        self.assertEqual(self.rodape(html)[1], "10:30")
+        self.assertIn("de todas as situações", html)
+
+    def test_pendente_mostra_so_o_que_falta_decidir_sem_coluna_repetida(self):
+        html = self.pede("mes=10&ano=2026&status=Pendente").get_data(as_text=True)
+        self.assertEqual(self.tabela(html), [
+            ["Alexandre P. S. Raia", "25755", "3:30"], ["Anderson", "48906", "3:30"]])
+        self.assertNotIn("Aguardando decisão</th>", html)
+
+    def test_rejeitado_sem_horas_rejeitadas_fica_zerado(self):
+        html = self.pede("mes=10&ano=2026&status=Rejeitado").get_data(as_text=True)
+        self.assertEqual([l[2] for l in self.tabela(html)], ["0:00", "0:00"])
+
+    def test_situacao_desconhecida_vale_todas(self):
+        html = self.pede("mes=10&ano=2026&status=xyz").get_data(as_text=True)
+        self.assertEqual(self.rodape(html)[1], "10:30")
+
+    def test_horas_negativas_abatem_o_total_e_ficam_em_vermelho(self):
+        self.repo._lancamentos[101]["excedidas_seg"] = -1800
+        html = self.pede().get_data(as_text=True)
+        self.assertEqual(self.tabela(html)[1][2], "-0:30")
+        self.assertRegex(html, r'class="num negativo"[^>]*><strong>-0:30</strong>')
+        html = self.pede("mes=10&ano=2026&status=").get_data(as_text=True)
+        self.assertEqual(self.tabela(html)[1][2], "3:00")  # 3:30 pendente - 0:30 aprovado
+
+    def test_so_aparece_quem_teve_lancamento_e_na_ordem_do_nome(self):
+        html = self.pede().get_data(as_text=True)
+        nomes = [l[0] for l in self.tabela(html)]
+        self.assertEqual(nomes, sorted(nomes, key=str.lower))
+        self.assertNotIn("Paulo Plantao", nomes)  # nenhum lancamento (so aparece no filtro)
+
+    def test_sem_dados_explica(self):
+        self.repo._lancamentos.clear()
+        html = self.pede().get_data(as_text=True)
+        self.assertIn("Sem dados para o filtro escolhido", html)
+        self.assertNotIn("<tfoot>", html)
+
+    # ---------------------------------------------- periodo, filtros e consulta
+    def test_a_situacao_nao_vai_para_a_consulta_e_o_periodo_sim(self):
+        self.pede("de=2026-10-05&ate=2026-10-20&unidade=Detran&prontuario=48906&status=Aprovado")
+        filtro = self.repo.ultimo_filtro
+        self.assertEqual((filtro["inicio"], filtro["fim"]), ("2026-10-05", "2026-10-20"))
+        self.assertEqual(filtro["prontuario"], "48906")
+        # Todas as situacoes vem do banco: a coluna "aguardando" precisa das pendentes.
+        self.assertIsNone(filtro["status"])
+
+    def test_mes_e_ano_valem_sem_as_datas(self):
+        self.pede("mes=9&ano=2026")
+        self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-09-01")
+        self.assertEqual(self.repo.ultimo_filtro["fim"], "2026-09-30")
+
+    def test_datas_invalidas_avisam_e_usam_o_mes(self):
+        html = self.pede("mes=10&ano=2026&de=2026-10-20&ate=2026-10-05").get_data(as_text=True)
+        self.assertIn("data inicial e maior que a final", html)
+        self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-10-01")
+
+    def test_periodo_livre_mostra_o_periodo_e_os_meses_fechados(self):
+        self.repo._fechamentos.append({
+            "id": 1, "ano": 2026, "mes": 10, "fechado_por": "Fernando Cruz",
+            "fechado_em": "11/10/2026 10:00", "reaberto_por": "", "reaberto_em": "", "motivo": ""})
+        html = self.pede("de=2026-09-20&ate=2026-10-10").get_data(as_text=True)
+        self.assertIn("<strong>20/09/2026</strong> a <strong>10/10/2026</strong>", html)
+        self.assertIn("O período inclui um mês fechado", html)
+        self.assertIn("limpar período", html)
+
+    def test_mes_fechado_mostra_a_faixa(self):
+        self.repo._fechamentos.append({
+            "id": 1, "ano": 2026, "mes": 10, "fechado_por": "Fernando Cruz",
+            "fechado_em": "11/10/2026 10:00", "reaberto_por": "", "reaberto_em": "", "motivo": ""})
+        self.assertIn("Mês fechado", self.pede().get_data(as_text=True))
+
+    # --------------------------------------------------------- abas e ligacoes
+    def test_as_duas_paginas_tem_as_abas_e_marcam_a_atual(self):
+        resumo = self.pede("mes=10&ano=2026&unidade=Detran").get_data(as_text=True)
+        detalhado = self.pede("mes=10&ano=2026&unidade=Detran", "/relatorios").get_data(as_text=True)
+        for html in (resumo, detalhado):
+            self.assertIn('aria-label="Tipo de relatório"', html)
+            self.assertIn(">Detalhado</a>", html)
+            self.assertIn(">Resumo</a>", html)
+            # A aba leva o periodo e a unidade escolhidos.
+            self.assertIn("unidade=Detran", html.split('aria-label="Tipo de relatório"', 1)[1].split("</nav>", 1)[0])
+        self.assertRegex(resumo, r'class="aba ativa"\s+aria-current="page"\s+href="/relatorios/resumo\?')
+        self.assertRegex(detalhado, r'class="aba ativa"\s+aria-current="page"\s+href="/relatorios\?')
+
+    def test_o_nome_leva_ao_detalhado_do_funcionario_no_mesmo_periodo_e_situacao(self):
+        html = self.pede("de=2026-10-01&ate=2026-10-31").get_data(as_text=True)
+        link = re.search(r'href="(/relatorios\?[^"]*prontuario=48906[^"]*)"', html).group(1).replace("&amp;", "&")
+        self.assertIn("de=2026-10-01", link)
+        self.assertIn("ate=2026-10-31", link)
+        self.assertIn("status=Aprovado", link)
+        self.cliente.get(link)
+        self.assertEqual(self.repo.ultimo_filtro["prontuario"], "48906")
+        self.assertEqual(self.repo.ultimo_filtro["status"], "Aprovado")
+
+    def test_link_do_csv_leva_a_situacao_mesmo_a_padrao(self):
+        html = self.pede().get_data(as_text=True)
+        link = html.split("/relatorios/resumo/csv?", 1)[1].split('"', 1)[0]
+        self.assertIn("status=Aprovado", link)
+
+    # --------------------------------------------------------------------- csv
+    def test_csv_traz_nome_prontuario_total_e_decimal(self):
+        resposta = self.pede("mes=10&ano=2026", "/relatorios/resumo/csv")
+        texto = resposta.get_data(as_text=True).lstrip("\ufeff")
+        linhas = texto.strip().splitlines()
+        self.assertEqual(linhas[0], "Funcionario;Prontuario;Unidade;Situacao considerada;"
+                                    "Total horas excedentes;Total (decimal);Aguardando decisao;Aguardando (decimal)")
+        self.assertEqual(linhas[1], "Alexandre P. S. Raia;25755;Detran;Aprovado;0:00;0,0;3:30;3,5")
+        self.assertEqual(linhas[2], "Anderson;48906;Detran;Aprovado;3:30;3,5;3:30;3,5")
+        self.assertEqual(len(linhas), 3)
+        self.assertIn('filename="resumo-horas-extras-2026-10.csv"', resposta.headers["Content-Disposition"])
+        self.assertTrue(resposta.get_data().startswith(b"\xef\xbb\xbf"), "BOM para o Excel")
+
+    def test_csv_de_todas_as_situacoes_e_periodo_livre(self):
+        resposta = self.pede("de=2026-10-05&ate=2026-10-20&status=", "/relatorios/resumo/csv")
+        linhas = resposta.get_data(as_text=True).lstrip("\ufeff").strip().splitlines()
+        self.assertEqual(linhas[2], "Anderson;48906;Detran;Todas;7:00;7,0;3:30;3,5")
+        self.assertIn('filename="resumo-horas-extras-2026-10-05_a_2026-10-20.csv"',
+                      resposta.headers["Content-Disposition"])
+
+    def test_csv_respeita_os_filtros_da_consulta(self):
+        self.pede("mes=10&ano=2026&prontuario=25755&unidade=Detran", "/relatorios/resumo/csv")
+        self.assertEqual(self.repo.ultimo_filtro["prontuario"], "25755")
+
+    # ------------------------------------------------------ permissao e impressao
+    def test_todos_os_perfis_veem_o_resumo_e_o_csv(self):
+        for login in ("flavio", "fernando", "veridiana", "alexandre"):
+            for rota in ("/relatorios/resumo", "/relatorios/resumo/csv"):
+                self.assertEqual(self.pede("mes=10&ano=2026", rota, login).status_code, 200, (login, rota))
+
+    def test_sem_login_vai_para_a_entrada(self):
+        for rota in ("/relatorios/resumo", "/relatorios/resumo/csv"):
+            resposta = self.cliente.get(rota)
+            self.assertEqual(resposta.status_code, 302, rota)
+            self.assertIn("/login", resposta.headers["Location"])
+
+    def test_impressao_esconde_o_que_nao_e_relatorio(self):
+        html = self.pede().get_data(as_text=True)
+        self.assertIn('class="abas nao-imprimir"', html)
+        self.assertIn('class="sub nao-imprimir"', html)
+        self.assertIn("window.print()", html)
+        css = open(os.path.join(os.path.dirname(__file__), "..", "app", "static", "estilo.css"),
+                   encoding="utf-8").read()
+        regra = css.split("@media print", 1)[1]
+        self.assertIn(".nao-imprimir", regra)
+        self.assertIn(".abas", regra)
 
 
 class TestPlantonista(BaseWeb):
