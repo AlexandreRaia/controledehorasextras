@@ -9,8 +9,7 @@
       <thead>
         <tr>
           <th>Prontuário</th><th>Nome</th><th>Cargo</th><th>Unidade</th><th>Jornada</th>
-          <th>Telefone</th><th class="num" title="Lançamentos no histórico">Lanç.</th>
-          <th>Situação</th><th>Ações</th>
+          <th>Telefone</th><th>Situação</th><th>Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -22,12 +21,11 @@
           <td>{{ f.unidade }}</td>
           <td>{{ 'Plantonista 12x36' if f.jornada_horas == 12 else '8 horas' }}</td>
           <td>{{ f.telefone }}</td>
-          <td class="num">{{ f.vinculos or '—' }}</td>
           <td>{{ c.situacao(f) }}</td>
           <td>{{ c.acoes('funcionarios', f, voltar) }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="vazio">
+        <tr><td colspan="8" class="vazio">
           {{ 'Nenhum funcionário encontrado neste filtro.' if total else 'Nenhum funcionário cadastrado.' }}
         </td></tr>
         {% endfor %}

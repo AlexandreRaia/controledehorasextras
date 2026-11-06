@@ -8,9 +8,7 @@
     <table>
       <thead>
         <tr>
-          <th>Nome</th><th>Login</th><th>Perfil</th>
-          <th class="num" title="Lançamentos e fechamentos feitos pela pessoa">Atividade</th>
-          <th>Situação</th><th>Ações</th>
+          <th>Nome</th><th>Login</th><th>Perfil</th><th>Situação</th><th>Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -19,12 +17,11 @@
           <td>{{ u.nome }}{% if u.id == atual_id %} <span class="dica">(você)</span>{% endif %}</td>
           <td>{{ u.login }}</td>
           <td>{{ u.perfil }}</td>
-          <td class="num">{{ u.vinculos or '—' }}</td>
           <td>{{ c.situacao(u) }}</td>
           <td>{{ c.acoes('usuarios', u, voltar, protegido=(u.id == atual_id)) }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="vazio">
+        <tr><td colspan="5" class="vazio">
           {{ 'Nenhum usuário encontrado neste filtro.' if total else 'Nenhum usuário cadastrado.' }}
         </td></tr>
         {% endfor %}
