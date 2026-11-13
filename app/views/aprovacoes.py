@@ -157,6 +157,9 @@ def decidir_horas(row_id):
         return redirect(_de_volta())
 
     item = repo.lancamento(row_id)
+    if valor == "Rejeitado":
+        flash("Informe o motivo da rejeicao.", "erro")
+        return redirect(url_for("aprovacoes.decidir", row_id=row_id))
     _grava_decisao(repo, item, status=valor)
     flash(
         f"{item['funcionario'] or item['prontuario']} em {item['data_br']}: "

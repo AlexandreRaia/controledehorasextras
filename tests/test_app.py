@@ -973,7 +973,6 @@ class TestBotoesSoComIcone(BaseWeb):
         self.entrar("fernando")
         html = self.cliente.get("/aprovacoes/?mes=10&ano=2026&status=").get_data(as_text=True)
         self.assertIn('name="valor" value="Aprovado"', html)
-        self.assertIn('name="valor" value="Rejeitado"', html)
         self.assertIn('name="valor" value="Autorizada"', html)
         self.assertIn('name="valor" value="Negada"', html)
 
@@ -1716,12 +1715,18 @@ class TestBotoesDeDecisao(BaseWeb):
         self.assertEqual(payload[S.F["lanc_status"]], "Aprovado")
         self.assertNotIn(S.F["lanc_hc_status"], payload)
 
-    def test_botao_reprovar_horas(self):
+    def test_reprovar_horas_exige_parecer_e_nao_grava_direto(self):
         self.entrar("fernando")
-        self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado"},
-                          follow_redirects=True)
+        resposta = self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado"})
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/aprovacoes/100", resposta.headers["Location"])
+        self.assertEqual(self.repo.gravacoes, [])
+        # Com o parecer, pela tela de decisao, grava.
+        self.cliente.post("/aprovacoes/100", data={
+            "decisao": "Rejeitado", "parecer": "fora da escala", "hc_decisao": "Autorizada"})
         _, _, payload = self.repo.gravacoes[-1]
         self.assertEqual(payload[S.F["lanc_status"]], "Rejeitado")
+        self.assertEqual(payload[S.F["lanc_parecer"]], "fora da escala")
 
     def test_autorizar_hc_na_linha_confirma_sem_mudar_o_excedente(self):
         self.entrar("fernando")
@@ -1758,7 +1763,9 @@ class TestBotoesDeDecisao(BaseWeb):
         html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
         self.assertEqual(html.count('name="valor" value="Aprovado"'), 2)  # 100 e 102
         # 101 ja aprovado: so a opcao contraria, escondida no "alterar".
-        self.assertEqual(html.count('name="valor" value="Rejeitado"'), 3)
+        # Reprovar e um link para a tela do parecer, nao um botao que grava.
+        self.assertEqual(html.count('name="valor" value="Rejeitado"'), 0)
+        self.assertEqual(html.count("pede o parecer do gestor"), 3)
         self.assertEqual(html.count("<summary>alterar</summary>"), 2)
         self.assertEqual(html.count('name="valor" value="Autorizada"'), 1)  # so 100
         self.assertIn("Não pedida", html)
@@ -1901,7 +1908,8 @@ class TestFechamento(BaseWeb):
         self.como("alexandre")
         self.cliente.post("/fechamento/2026/10/reabrir", data={"motivo": "ajuste combinado"})
         self.como("fernando")
-        self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado"})
+        self.cliente.post("/aprovacoes/100", data={
+            "decisao": "Rejeitado", "parecer": "x", "hc_decisao": "Negada"})
         self.assertEqual(self.repo.gravacoes[-1][0], "atualizar")
 
     def test_rh_nao_lanca_edita_nem_exclui_em_mes_fechado(self):
