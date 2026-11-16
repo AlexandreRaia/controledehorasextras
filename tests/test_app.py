@@ -1772,6 +1772,14 @@ class TestBotoesDeDecisao(BaseWeb):
         self.assertEqual(payload[S.F["lanc_parecer"]], "fora da escala")
         self.assertTrue(payload[S.F["lanc_decidido_por"]])
 
+    def test_aprovar_depois_de_rejeitar_apaga_a_justificativa_antiga(self):
+        self.repo._lancamentos[100].update(status="Rejeitado", parecer="fora da escala")
+        self.entrar("fernando")
+        self.cliente.post("/aprovacoes/100/horas", data={"valor": "Aprovado"}, headers=HX)
+        _, _, payload = self.repo.gravacoes[-1]
+        self.assertEqual(payload[S.F["lanc_status"]], "Aprovado")
+        self.assertEqual(payload[S.F["lanc_parecer"]], "")
+
     def test_reprovar_sem_justificativa_devolve_o_modal_e_nao_grava(self):
         self.entrar("fernando")
         resposta = self.cliente.post("/aprovacoes/100/horas",

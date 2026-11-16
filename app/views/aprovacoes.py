@@ -188,7 +188,10 @@ def decidir_horas(row_id):
         return redirect(_de_volta())
 
     item = repo.lancamento(row_id)
-    parecer = None
+    # Aprovar encerra a justificativa de uma rejeicao anterior: ela deixaria de
+    # valer e ficaria ao lado de "Aprovado". O gestor pode escrever outra na
+    # tela de analise.
+    parecer = ""
     if valor == "Rejeitado":
         parecer = (request.form.get("parecer") or "").strip()
         if not parecer:
