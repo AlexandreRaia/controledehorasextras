@@ -4,14 +4,6 @@
 {% block conteudo %}
 
 <h1>Lançamentos</h1>
-<p class="sub">
-  Dia a dia de cada funcionário, agrupado e com subtotal. Escolha o mês e o ano, ou preencha
-  De e Até para um período livre (até 366 dias): com as duas datas, elas valem no lugar do mês.
-  O almoço é descontado quando a permanência passa de {{ almoco_a_partir_horas }} horas e não entra
-  no excedente, salvo na hora corrida, que já conta desde o lançamento e só deixa de valer se o
-  gestor negar. Quem trabalha menos que a jornada fica com excedente negativo.
-</p>
-
 {% if personalizado %}{{ m.faixa_fechados(fechados_no_periodo) }}{% else %}{{ m.faixa_fechado(fechamento) }}{% endif %}
 
 <form class="cartao filtros filtros-linha" method="get">

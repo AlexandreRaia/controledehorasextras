@@ -320,7 +320,8 @@ tr.inativo td strong { color: var(--suave); }
 
 /* Lista de lancamentos: tudo em uma linha por registro, sem rolagem lateral.
    A pagina fica mais larga e a tabela mais compacta; so o parecer quebra linha. */
-.conteudo:has(.tabela-lancamentos) { max-width: 1720px; }
+.conteudo:has(.tabela-lancamentos) { max-width: 1720px; padding-top: 12px; }
+.conteudo:has(.tabela-lancamentos) h1 { margin-bottom: 10px; }
 .tabela-lancamentos { font-size: 13px; }
 .tabela-lancamentos th, .tabela-lancamentos td { padding: 7px 5px; white-space: nowrap; }
 /* Editar e excluir ficam sempre a vista, mesmo se a tabela ainda precisar de rolagem. */
