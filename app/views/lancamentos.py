@@ -43,8 +43,16 @@ def _periodo_do_pedido(args):
 
 
 LIMITE_EXCEDENTE_SEG = 20 * 3600
-# Acima disto a permanencia parece erro de digitacao: o RH precisa confirmar.
-PERMANENCIA_A_CONFIRMAR_SEG = 20 * 3600
+# Acima disto a permanencia pode ser erro de digitacao: o sistema so alerta.
+PERMANENCIA_A_ALERTAR_SEG = 20 * 3600
+
+
+def alerta_longa(permanencia):
+    flash(
+        f"Atencao: permanencia de {format_duration(permanencia)}, acima de "
+        f"{PERMANENCIA_A_ALERTAR_SEG // 3600} horas. Confira entrada e saida.",
+        "aviso",
+    )
 
 
 def _le_excedente(bruto, erros):
@@ -56,7 +64,12 @@ def _le_excedente(bruto, erros):
     if valor is None:
         erros.append("Excedente no formato H:MM; para horas negativas use -0:30.")
     elif abs(valor) > LIMITE_EXCEDENTE_SEG:
-        erros.append("Excedente fora do limite de 20 horas, para mais ou para menos.")
+        # So alerta: um plantao longo pode ter excedente real acima de 20 horas.
+        flash(
+            f"Atencao: excedente de {format_duration(valor)}, acima de "
+            f"{LIMITE_EXCEDENTE_SEG // 3600} horas. Confira o valor digitado.",
+            "aviso",
+        )
     return valor
 
 
@@ -85,15 +98,11 @@ def _monta_payload(form, funcionario):
         funcionario["jornada_horas"], entrada, saida,
         hc_autorizada=hc, fora_escala=fora_escala,
     )
-    # Permanencia muito longa e aviso, nao bloqueio: pode ser um erro de
-    # digitacao, mas tambem um plantao real. O RH confirma e segue.
-    longa = permanencia is not None and permanencia > PERMANENCIA_A_CONFIRMAR_SEG
-    if longa and not form.get("confirma_permanencia"):
-        erros.append(
-            f"Permanencia de {format_duration(permanencia)}, acima de "
-            f"{PERMANENCIA_A_CONFIRMAR_SEG // 3600} horas. Confira entrada e saida; "
-            "se estiver correto, marque a confirmacao abaixo e salve."
-        )
+    # Permanencia muito longa e so alerta, nunca bloqueio: pode ser erro de
+    # digitacao, mas tambem um plantao real. O lancamento e gravado e o alerta
+    # aparece depois de salvar.
+    if permanencia is not None and permanencia > PERMANENCIA_A_ALERTAR_SEG:
+        alerta_longa(permanencia)
 
     obs = (form.get("obs_rh") or "").strip()
 
@@ -122,7 +131,7 @@ def _monta_payload(form, funcionario):
         S.F["lanc_lancado_por"]: usuario["nome"] if usuario else "",
         S.F["lanc_lancado_em"]: iso_now_utc(),
     }
-    return payload, erros, trabalhadas, excedidas, longa
+    return payload, erros, trabalhadas, excedidas
 
 
 def _htmx():
@@ -217,7 +226,7 @@ def novo():
                 form=request.form, acao=acao,
             )
 
-        payload, erros, trabalhadas, excedidas, longa = _monta_payload(
+        payload, erros, trabalhadas, excedidas = _monta_payload(
             request.form, funcionario
         )
         if not erros and repo.mes_fechado_data(payload[S.F["lanc_data"]]):
@@ -236,7 +245,7 @@ def novo():
                 flash(erro, "erro")
             return _form(
                 funcionarios=funcionarios, item=None, hoje=hoje,
-                form=request.form, acao=acao, pede_confirmacao=longa,
+                form=request.form, acao=acao,
             )
 
         payload[S.F["lanc_status"]] = STATUS_PENDENTE
@@ -277,7 +286,7 @@ def editar(row_id):
                 form=request.form, decidido=decidido, acao=acao,
             )
 
-        payload, erros, trabalhadas, excedidas, longa = _monta_payload(
+        payload, erros, trabalhadas, excedidas = _monta_payload(
             request.form, funcionario
         )
         if not erros and repo.mes_fechado_data(payload[S.F["lanc_data"]]):
@@ -294,7 +303,6 @@ def editar(row_id):
             return _form(
                 funcionarios=funcionarios, item=item, hoje=item["data"],
                 form=request.form, decidido=decidido, acao=acao,
-                pede_confirmacao=longa,
             )
 
         # O RH nunca decide: editar devolve o lancamento ao gestor, entao a

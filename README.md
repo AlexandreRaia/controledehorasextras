@@ -83,10 +83,9 @@ A jornada e o almoço são configuráveis em `JORNADA_PADRAO_HORAS` e
 ### Permanência muito longa
 
 Uma permanência acima de 20 horas costuma ser erro de digitação (como `19:00`
-no lugar de `9:00`), mas também pode ser um plantão real. Por isso o sistema não
-bloqueia: ele avisa a permanência calculada e mostra a caixa "Confirmo que a
-permanência acima de 20 horas está correta". Marcada a caixa, o lançamento é
-gravado. O ajuste manual do excedente sozinho não dispensa a confirmação.
+no lugar de `9:00`), mas também pode ser um plantão real. Por isso o sistema
+**não bloqueia**: grava o lançamento e mostra um alerta amarelo com a
+permanência calculada, para o RH conferir entrada e saída.
 
 ### Ajuste do excedente pelo RH
 
@@ -95,8 +94,8 @@ No lançamento, o campo **Excedente (H:MM)** permite ao RH digitar o valor:
 
 - **Em branco:** vale o cálculo. Na edição aparece "Calculado agora: ...".
 - **Preenchido:** vale no lugar do cálculo e aceita valor **negativo**
-  (por exemplo `-0:30`), para horas a compensar ou descontar. O limite é de
-  20 horas, para mais ou para menos.
+  (por exemplo `-0:30`), para horas a compensar ou descontar. Acima de 20
+  horas, para mais ou para menos, o sistema só alerta e grava mesmo assim.
 - **Motivo obrigatório:** o RH precisa preencher a Observação do RH.
 - **Voltar ao cálculo:** apagar o campo e salvar. Digitar o mesmo valor que o
   sistema calculou também não conta como ajuste.
