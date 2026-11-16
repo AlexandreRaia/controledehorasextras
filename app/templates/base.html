@@ -16,7 +16,7 @@
     <nav class="menu">
       <a href="{{ url_for('lancamentos.listar') }}">Lançamentos</a>
       {% if pode_decidir %}<a href="{{ url_for('aprovacoes.listar') }}">Aprovações</a>{% endif %}
-      <a href="{{ url_for('relatorios.consolidado') }}">Relatórios</a>
+      <a href="{{ url_for('relatorios.resumo') }}">Resumo</a>
       <a href="{{ url_for('fechamento.listar') }}">Fechamento</a>
       {% if pode_cadastrar %}
       <a href="{{ url_for('cadastros.funcionarios') }}">Funcionários</a>

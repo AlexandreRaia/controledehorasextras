@@ -80,8 +80,15 @@
   {% set rota = 'aprovacoes.decidir_horas' %}
   {% set aprovar = botao_decisao(rota, item, voltar, 'Aprovado', 'Aprovar', 'ok',
                                  'Aprovar as horas excedentes') %}
-  {% set reprovar = botao_decisao(rota, item, voltar, 'Rejeitado', 'Reprovar', 'perigo',
-                                  'Reprovar as horas excedentes') %}
+  {# Reprovar exige justificativa: abre o modal, sem sair da tela. #}
+  {% set reprovar %}
+    <a class="botao mini perigo so-icone"
+       href="{{ url_for('aprovacoes.decidir', row_id=item.id) }}"
+       hx-get="{{ url_for('aprovacoes.rejeitar', row_id=item.id, voltar=voltar) }}"
+       hx-target="#modal-corpo" hx-swap="innerHTML" hx-select="unset" hx-select-oob="unset"
+       title="Reprovar as horas excedentes (pede a justificativa do gestor)"
+       aria-label="Reprovar: informar a justificativa do gestor">{{ icone('nao') }}</a>
+  {% endset %}
   <div class="decisao">
     {% if item.fechado %}
       {{ etiqueta_status(item.status) }}

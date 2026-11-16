@@ -101,7 +101,7 @@ No lançamento, o campo **Excedente (H:MM)** permite ao RH digitar o valor:
   sistema calculou também não conta como ajuste.
 
 Cada lançamento guarda os dois valores: `excedidas_manual_seg` (o digitado, nulo
-sem ajuste) e `excedidas_seg` (o que está em vigor). Listas, relatório e análise
+sem ajuste) e `excedidas_seg` (o que está em vigor). Listas e análise
 mostram a etiqueta **Ajustado**, com o valor calculado e o motivo, e o CSV traz as
 colunas "Excedente calculado" e "Ajustado pelo RH".
 
@@ -215,32 +215,36 @@ aprovações e os demais perfis para a lista de lançamentos.
   lista é atualizada, com os mesmos filtros, e a página não recarrega. Sem
   JavaScript, os mesmos botões levam a uma página própria, e tudo continua
   funcionando.
-- **Lançamentos**: lista do mês agrupada por funcionário, com subtotal de cada
-  um e filtros por funcionário e situação.
+- **Lançamentos**: o dia a dia de cada funcionário, agrupado, com subtotal separado
+  pela decisão do gestor (aprovadas, pendentes, rejeitadas) e total geral. Tem as colunas
+  **Decidido por** e **Parecer do gestor**, visíveis a todos os perfis. O período é o mês e
+  o ano, ou um intervalo livre nos campos **De** e **Até** (calendário), de até 366 dias.
+  Com as duas datas preenchidas, elas valem no lugar do mês e do ano; com só uma, ou com
+  datas inválidas ou invertidas, o sistema avisa e usa o mês. Se o intervalo toca meses
+  fechados, uma faixa lista quais são. Filtra também por unidade, funcionário e situação.
+  Dois botões de ícone baixam o **CSV** (separado por ponto e vírgula, pronto para o Excel,
+  com os mesmos filtros e o período no nome do arquivo) e **imprimem ou salvam em PDF**
+  (a impressão esconde filtros, botões e a coluna Ações). Esta tela substituiu o antigo
+  relatório detalhado; os endereços `/relatorios` e `/relatorios/csv` seguem para ela.
 - **Aprovações**: fila do gestor agrupada por funcionário. Cada linha tem os
   botões Aprovar e Reprovar para as horas excedentes e Autorizar e Negar para
   a hora corrida, que só aparecem quando o RH pediu. Um clique grava no banco
-  na hora. A coluna
+  na hora, exceto **Reprovar**: ele abre um modal com a **justificativa do
+  gestor**, obrigatória, e só grava ao confirmar. A lista se atualiza sem trocar
+  de página e a justificativa fica visível na coluna Parecer do gestor. A coluna
   Sem HC mostra no que o excedente ficaria se a hora corrida fosse negada.
   Os mesmos botões aparecem na lista de Lançamentos quando quem olha é o
   gestor. A decisão é sempre dia a dia, não há aprovação em lote.
-- **Relatórios**: consolidado por funcionário, detalhe dia a dia e exportação
-  em CSV separado por ponto e vírgula, pronto para o Excel. O período é o mês e
-  o ano, ou um intervalo livre nos campos **De** e **Até** (calendário), de até
-  366 dias. Com as duas datas preenchidas, elas valem no lugar do mês e do ano;
-  com só uma, ou com datas inválidas ou invertidas, o sistema avisa e usa o mês.
-  Se o intervalo toca meses fechados, uma faixa lista quais são. O CSV leva o
-  mesmo período, e o nome do arquivo mostra as datas.
-- **Relatório resumo** (aba "Resumo" dentro de Relatórios): uma linha por funcionário
+- **Resumo** (item do menu): uma linha por funcionário
   com nome, prontuário e o **total de horas excedentes** do período, em ordem alfabética
   e com o total geral no fim. Usa o mesmo período (mês e ano, ou De e Até), os mesmos
-  filtros e as mesmas saídas do relatório detalhado (CSV e impressão em PDF).
+  filtros e as mesmas saídas de Lançamentos (CSV e impressão em PDF).
   - Por padrão o total soma só as horas **aprovadas** pelo gestor, que são as que seguem
     para a folha. Em **Situação**, "Todas" soma tudo e Pendente ou Rejeitado mostram
     esses totais. A coluna **Aguardando decisão** mostra o que ainda falta decidir, para o
     número não parecer menor do que é no início do mês.
   - Horas negativas (horas devidas) abatem do total e aparecem em vermelho. Só entra quem
-    teve lançamento no período. Clicar no nome abre o relatório detalhado daquele
+    teve lançamento no período. Clicar no nome abre os lançamentos daquele
     funcionário, no mesmo período e situação.
   - O CSV traz nome, prontuário, unidade, a situação considerada, o total em H:MM e em
     decimal (para a folha) e o que aguarda decisão.

@@ -1,21 +1,25 @@
 """Lancamento de horas. Exclusivo do RH; os demais perfis so consultam."""
+import csv
+import io
 from urllib.parse import parse_qsl, urlparse
 
 from flask import (
-    Blueprint, flash, make_response, redirect, render_template, request, url_for,
+    Blueprint, Response, flash, make_response, redirect, render_template, request,
+    url_for,
 )
 from werkzeug.datastructures import MultiDict
 
 from .. import get_repo
 from ..auth import PERFIL_RH, login_required, perfil_required, usuario_atual
 from ..config import Config
+from ..periodos import meses_fechados, periodo
 from .. import schema as S
 from ..utils import (
     agrupa_por_funcionario,
     format_duration,
+    horas_decimais,
     iso_now_utc,
     local_today,
-    month_bounds,
     parse_date,
     parse_duration,
 )
@@ -26,20 +30,6 @@ STATUS_PENDENTE = "Pendente"
 HC_NAO_SOLICITADA = "Nao solicitada"
 HC_PENDENTE = "Pendente"
 MSG_FECHADO = "O mes desta data ja foi fechado. Fale com o administrador."
-
-
-def _periodo_do_pedido(args):
-    """Le mes/ano dos argumentos; por padrao usa o mes corrente."""
-    hoje = local_today(Config.TIMEZONE_OFFSET)
-    try:
-        ano = int(args.get("ano") or hoje.year)
-        mes = int(args.get("mes") or hoje.month)
-        if not 1 <= mes <= 12:
-            raise ValueError
-    except ValueError:
-        ano, mes = hoje.year, hoje.month
-    inicio, fim = month_bounds(ano, mes)
-    return ano, mes, inicio, fim
 
 
 LIMITE_EXCEDENTE_SEG = 20 * 3600
@@ -147,28 +137,45 @@ def _voltar():
     return url_for("lancamentos.listar")
 
 
-def _contexto_lista(args):
-    """Tudo o que a lista de lancamentos precisa para um mes e filtros."""
-    repo = get_repo()
-    ano, mes, inicio, fim = _periodo_do_pedido(args)
-    prontuario = (args.get("prontuario") or "").strip()
-    status = args.get("status") or ""
-
-    itens = repo.lancamentos(
-        inicio=inicio, fim=fim, prontuario=prontuario or None, status=status or None
-    )
-    fechamento = repo.fechamento(ano, mes)
-    for i in itens:
-        i["fechado"] = bool(fechamento)
+def _filtros(args, avisos=None):
+    """Filtros da tela, iguais para a lista, o modal e o CSV."""
+    ano, mes, inicio, fim, personalizado = periodo(args, avisos)
     return {
-        "fechamento": fechamento,
+        "ano": ano, "mes": mes, "inicio": inicio, "fim": fim,
+        "personalizado": personalizado,
+        "de": inicio if personalizado else "",
+        "ate": fim if personalizado else "",
+        "unidade": args.get("unidade") or "",
+        "prontuario": (args.get("prontuario") or "").strip(),
+        "status": args.get("status") or "",
+    }
+
+
+def _busca(repo, f):
+    return repo.lancamentos(
+        inicio=f["inicio"], fim=f["fim"], prontuario=f["prontuario"] or None,
+        unidade=f["unidade"] or None, status=f["status"] or None,
+    )
+
+
+def _contexto_lista(args, avisos=None):
+    """Tudo o que a lista de lancamentos precisa para um periodo e filtros."""
+    repo = get_repo()
+    f = _filtros(args, avisos)
+    itens = _busca(repo, f)
+    personalizado = f["personalizado"]
+    fechados = meses_fechados(repo, f["inicio"], f["fim"])
+    fechados_em = {(x["ano"], x["mes"]) for x in fechados}
+    for i in itens:
+        i["fechado"] = (int(i["data"][:4]), int(i["data"][5:7])) in fechados_em
+    return {
+        **f,
+        "fechamento": None if personalizado else repo.fechamento(f["ano"], f["mes"]),
+        "fechados_no_periodo": fechados if personalizado else [],
         "grupos": agrupa_por_funcionario(itens),
         "itens": itens,
         "funcionarios": repo.funcionarios(),
-        "ano": ano,
-        "mes": mes,
-        "prontuario": prontuario,
-        "status": status,
+        "unidades": repo.unidades(),
         "total_excedido": sum(i["excedidas_seg"] or 0 for i in itens),
     }
 
@@ -176,8 +183,51 @@ def _contexto_lista(args):
 @bp.route("/")
 @login_required
 def listar():
+    avisos = []
+    contexto = _contexto_lista(request.args, avisos)
+    for aviso in avisos:
+        flash(aviso, "aviso")
     return render_template(
-        "lancamentos/listar.html", voltar=request.full_path, **_contexto_lista(request.args)
+        "lancamentos/listar.html", voltar=request.full_path, **contexto
+    )
+
+
+@bp.route("/csv")
+@login_required
+def csv_lancamentos():
+    """Os mesmos lancamentos da tela, com os mesmos filtros, em CSV."""
+    f = _filtros(request.args)
+    itens = _busca(get_repo(), f)
+    buffer = io.StringIO()
+    escritor = csv.writer(buffer, delimiter=";")
+    escritor.writerow([
+        "Data", "Prontuario", "Funcionario", "Unidade", "Entrada", "Saida",
+        "Permanencia", "Almoco descontado", "Horas trabalhadas",
+        "Horas excedidas", "Excedidas (decimal)",
+        "Status", "HC solicitada", "HC status", "Lancado por", "Decidido por",
+        "Parecer do gestor", "Jornada (h)", "Plantao fora da escala",
+        "Excedente calculado", "Ajustado pelo RH",
+    ])
+    for i in itens:
+        escritor.writerow([
+            i["data_br"], i["prontuario"], i["funcionario"], i["unidade"],
+            format_duration(i["entrada_seg"]), format_duration(i["saida_seg"]),
+            format_duration(i["permanencia_seg"]), format_duration(i["almoco_seg"]),
+            format_duration(i["trabalhadas_seg"]), format_duration(i["excedidas_seg"]),
+            str(horas_decimais(i["excedidas_seg"])).replace(".", ","),
+            i["status"], "Sim" if i["hc_solicitada"] else "Nao", i["hc_status"],
+            i["lancado_por"], i["decidido_por"], i["parecer"],
+            i["jornada_horas"], "Sim" if i["fora_escala"] else "Nao",
+            format_duration(i["excedidas_calc_seg"]), "Sim" if i["ajustado"] else "Nao",
+        ])
+    nome = (
+        f"horas-extras-{f['inicio']}_a_{f['fim']}.csv" if f["personalizado"]
+        else f"horas-extras-{f['ano']}-{f['mes']:02d}.csv"
+    )
+    return Response(
+        buffer.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
     )
 
 

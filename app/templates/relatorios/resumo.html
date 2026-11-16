@@ -1,11 +1,9 @@
 {% extends "base.html" %}
 {% import "macros.html" as m %}
-{% import "relatorios/_abas.html" as t %}
-{% block titulo %}Relatório resumo{% endblock %}
+{% block titulo %}Resumo{% endblock %}
 {% block conteudo %}
 
-<h1>Relatório resumo</h1>
-{{ t.abas('resumo', ano, mes, de, ate, unidade, prontuario) }}
+<h1>Resumo de excedentes</h1>
 <p class="sub nao-imprimir">
   O total de horas excedentes de cada funcionário no período. Por padrão conta só as horas
   <strong>aprovadas</strong> pelo gestor, que são as que seguem para a folha; a coluna
@@ -91,9 +89,9 @@
       {% for l in linhas %}
       <tr>
         <td>
-          {# O nome leva ao relatorio detalhado do funcionario, no mesmo periodo e situacao. #}
+          {# O nome leva aos lançamentos do funcionario, no mesmo periodo e situacao. #}
           <a class="link-discreto" title="Ver os lançamentos de {{ l.funcionario }}"
-             href="{{ url_for('relatorios.consolidado', ano=ano, mes=mes, de=(de or none), ate=(ate or none),
+             href="{{ url_for('lancamentos.listar', ano=ano, mes=mes, de=(de or none), ate=(ate or none),
                               unidade=(unidade or none), prontuario=l.prontuario, status=(situacao or none)) }}">{{ l.funcionario }}</a>
         </td>
         <td>{{ l.prontuario }}</td>

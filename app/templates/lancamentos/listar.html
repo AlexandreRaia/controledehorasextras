@@ -5,16 +5,34 @@
 
 <h1>Lançamentos</h1>
 <p class="sub">
-  Agrupados por funcionário, com subtotal de cada um.
+  Dia a dia de cada funcionário, agrupado e com subtotal. Escolha o mês e o ano, ou preencha
+  De e Até para um período livre (até 366 dias): com as duas datas, elas valem no lugar do mês.
   O almoço é descontado quando a permanência passa de {{ almoco_a_partir_horas }} horas e não entra
   no excedente, salvo na hora corrida, que já conta desde o lançamento e só deixa de valer se o
   gestor negar. Quem trabalha menos que a jornada fica com excedente negativo.
 </p>
 
-{{ m.faixa_fechado(fechamento) }}
+{% if personalizado %}{{ m.faixa_fechados(fechados_no_periodo) }}{% else %}{{ m.faixa_fechado(fechamento) }}{% endif %}
 
-<form class="cartao filtros" method="get">
+<form class="cartao filtros filtros-linha" method="get">
   {{ m.seletor_mes(ano, mes) }}
+  <div class="campo estreito">
+    <label for="de">De</label>
+    <input type="date" id="de" name="de" value="{{ de }}">
+  </div>
+  <div class="campo estreito">
+    <label for="ate">Até</label>
+    <input type="date" id="ate" name="ate" value="{{ ate }}">
+  </div>
+  <div class="campo">
+    <label for="unidade">Unidade</label>
+    <select id="unidade" name="unidade">
+      <option value="">Todas</option>
+      {% for u in unidades %}
+      <option value="{{ u.nome }}" {% if u.nome == unidade %}selected{% endif %}>{{ u.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
   <div class="campo">
     <label for="prontuario">Funcionário</label>
     <select id="prontuario" name="prontuario">
@@ -35,11 +53,21 @@
       {% endfor %}
     </select>
   </div>
-  <div class="campo auto">
+  {# So icones, para o filtro caber em uma linha; o texto fica no title e no aria-label. #}
+  <div class="campo acao-icone">
     <button class="botao so-icone" type="submit" title="Filtrar" aria-label="Filtrar">{{ m.icone('filtro') }}</button>
   </div>
+  <div class="campo acao-icone">
+    <a class="botao secundario so-icone" title="Baixar CSV" aria-label="Baixar CSV"
+       href="{{ url_for('lancamentos.csv_lancamentos', ano=ano, mes=mes, unidade=(unidade or none), status=(status or none),
+                      prontuario=(prontuario or none), de=(de or none), ate=(ate or none)) }}">{{ m.icone('baixar') }}</a>
+  </div>
+  <div class="campo acao-icone">
+    <button class="botao secundario so-icone" type="button" onclick="window.print()"
+            title="Imprimir ou salvar em PDF" aria-label="Imprimir ou salvar em PDF">{{ m.icone('imprimir') }}</button>
+  </div>
   {% if pode_lancar %}
-  <div class="campo auto">
+  <div class="campo acao-icone">
     <a class="botao ok so-icone" href="{{ url_for('lancamentos.novo', voltar=voltar) }}"
        hx-get="{{ url_for('lancamentos.novo', voltar=voltar) }}"
        hx-target="#modal-corpo" hx-swap="innerHTML"
@@ -48,10 +76,18 @@
   {% endif %}
 </form>
 
+<p class="dica periodo">
+  <span class="so-impressao">{% if unidade %}Unidade: <strong>{{ unidade }}</strong> · {% endif %}{% if status %}Situação: <strong>{{ status }}</strong> · {% endif %}</span>
+  Período: <strong>{{ inicio | data_br }}</strong> a <strong>{{ fim | data_br }}</strong>
+  {% if personalizado %}
+  · <a href="{{ url_for('lancamentos.listar', ano=ano, mes=mes, unidade=(unidade or none), status=(status or none), prontuario=(prontuario or none)) }}">limpar período</a>
+  {% endif %}
+</p>
+
 {% include "lancamentos/_lista.html" %}
 
-{% if pode_lancar %}
-{# O formulario de lancar e editar abre aqui, sem sair da lista. #}
+{# O formulario de lancar e editar (RH) e a justificativa da rejeicao (gestor) abrem aqui. #}
+{% if pode_lancar or pode_decidir %}
 <dialog id="modal" class="modal"><div id="modal-corpo"></div></dialog>
 {% endif %}
 {% endblock %}

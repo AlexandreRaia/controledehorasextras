@@ -355,7 +355,7 @@ class RepoFalso:
         # O falso nao filtra por data (os dados de teste sao de outubro); guarda o
         # periodo recebido para os testes conferirem o que a tela pediu.
         self.ultimo_filtro = {"inicio": inicio, "fim": fim, "prontuario": prontuario,
-                              "status": status}
+                              "status": status, "unidade": unidade}
         itens = list(self._lancamentos.values())
         if prontuario:
             itens = [i for i in itens if i["prontuario"] == prontuario]
@@ -489,7 +489,7 @@ class TestPermissoes(BaseWeb):
     def test_operacoes_so_consulta(self):
         self.entrar("veridiana")
         self.assertEqual(self.cliente.get("/lancamentos/").status_code, 200)
-        self.assertEqual(self.cliente.get("/relatorios").status_code, 200)
+        self.assertEqual(self.cliente.get("/lancamentos/").status_code, 200)
         self.assertEqual(self.cliente.get("/lancamentos/novo").status_code, 403)
         self.assertEqual(self.cliente.get("/aprovacoes/").status_code, 403)
         self.assertEqual(self.cliente.get("/cadastros/usuarios").status_code, 403)
@@ -562,8 +562,15 @@ class TestModalDeEdicao(BaseWeb):
         # Sem JavaScript o mesmo botao continua sendo um link para a pagina.
         self.assertIn('href="/lancamentos/100/editar?', html)
 
-    def test_gestor_nao_ve_o_modal(self):
+    def test_gestor_tem_o_modal_so_para_a_justificativa(self):
+        # O gestor nao lanca, mas a rejeicao abre a justificativa em um modal.
         self.entrar("fernando")
+        html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
+        self.assertIn('<dialog id="modal"', html)
+        self.assertNotIn("/lancamentos/novo", html)
+
+    def test_operacoes_nao_tem_modal(self):
+        self.entrar("veridiana")
         html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
         self.assertNotIn('<dialog id="modal"', html)
 
@@ -740,7 +747,7 @@ class TestAjusteDoExcedente(BaseWeb):
         self.repo._lancamentos[100].update(
             ajustado=True, excedidas_seg=60 * 60, excedidas_calc_seg=2 * 3600)
         self.entrar("veridiana")
-        csv = self.cliente.get("/relatorios/csv").get_data(as_text=True)
+        csv = self.cliente.get("/lancamentos/csv").get_data(as_text=True)
         self.assertIn("Excedente calculado;Ajustado pelo RH", csv)
         self.assertIn("2:00;Sim", csv)
 
@@ -790,6 +797,45 @@ class TestPermanenciaLonga(BaseWeb):
         self.assertEqual(payload[S.F["lanc_excedidas"]], 25 * 3600)
 
 
+class TestLancamentosUnificado(BaseWeb):
+    """A tela Lancamentos absorveu o relatorio detalhado."""
+
+    def test_colunas_decidido_por_e_parecer_para_todos_os_perfis(self):
+        self.repo._lancamentos[101].update(
+            status="Rejeitado", decidido_por="Fernando Cruz", parecer="sem autorizacao previa")
+        for login in ("flavio", "fernando", "veridiana", "alexandre"):
+            self.cliente.get("/logout")
+            self.entrar(login)
+            html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
+            self.assertIn("<th>Decidido por</th><th>Parecer do gestor</th>", html, login)
+            self.assertIn("sem autorizacao previa", html, login)
+            self.assertIn("Fernando Cruz", html, login)
+
+    def test_filtros_unidade_e_periodo_livre_e_botoes(self):
+        self.entrar("veridiana")
+        html = self.cliente.get("/lancamentos/?de=2026-10-05&ate=2026-10-20&unidade=Detran").get_data(as_text=True)
+        self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-10-05")
+        self.assertEqual(self.repo.ultimo_filtro["unidade"], "Detran")
+        self.assertIn('name="de"', html)
+        self.assertIn('aria-label="Baixar CSV"', html)
+        self.assertIn('aria-label="Imprimir ou salvar em PDF"', html)
+
+    def test_relatorios_antigos_redirecionam_sem_perder_os_filtros(self):
+        self.entrar("veridiana")
+        r = self.cliente.get("/relatorios?mes=10&ano=2026&unidade=Detran")
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r.headers["Location"].startswith("/lancamentos/?"))
+        self.assertIn("unidade=Detran", r.headers["Location"])
+        r = self.cliente.get("/relatorios/csv?mes=10&ano=2026")
+        self.assertTrue(r.headers["Location"].startswith("/lancamentos/csv?"))
+
+    def test_nao_ha_mais_a_pagina_de_relatorio_detalhado(self):
+        self.entrar("veridiana")
+        html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
+        self.assertNotIn(">Relatórios</a>", html)
+        self.assertIn(">Resumo</a>", html)
+
+
 class TestRelatorioPorPeriodo(BaseWeb):
     def fecha(self, ano, mes):
         self.repo._fechamentos.append({
@@ -798,7 +844,7 @@ class TestRelatorioPorPeriodo(BaseWeb):
             "reaberto_por": "", "reaberto_em": "", "motivo": "",
         })
 
-    def pede(self, query, rota="/relatorios"):
+    def pede(self, query, rota="/lancamentos/"):
         self.entrar("veridiana")
         return self.cliente.get(f"{rota}?{query}")
 
@@ -859,7 +905,7 @@ class TestRelatorioPorPeriodo(BaseWeb):
         self.pede("de=2026-10-01&ate=2026-10-31&prontuario=48906&status=Aprovado")
         self.assertEqual(self.repo.ultimo_filtro, {
             "inicio": "2026-10-01", "fim": "2026-10-31",
-            "prontuario": "48906", "status": "Aprovado"})
+            "prontuario": "48906", "status": "Aprovado", "unidade": None})
 
     def test_faixa_lista_os_meses_fechados_que_o_periodo_toca(self):
         self.fecha(2026, 10)
@@ -882,14 +928,14 @@ class TestRelatorioPorPeriodo(BaseWeb):
         self.assertNotIn("faixa-fechado", html)
 
     def test_csv_respeita_o_periodo_e_o_nome_mostra_as_datas(self):
-        resposta = self.pede("de=2026-10-05&ate=2026-10-20&prontuario=48906", "/relatorios/csv")
+        resposta = self.pede("de=2026-10-05&ate=2026-10-20&prontuario=48906", "/lancamentos/csv")
         self.assertEqual(self.repo.ultimo_filtro["inicio"], "2026-10-05")
         self.assertEqual(self.repo.ultimo_filtro["fim"], "2026-10-20")
         self.assertIn('filename="horas-extras-2026-10-05_a_2026-10-20.csv"',
                       resposta.headers["Content-Disposition"])
 
     def test_csv_sem_as_datas_mantem_o_nome_do_mes(self):
-        resposta = self.pede("mes=10&ano=2026", "/relatorios/csv")
+        resposta = self.pede("mes=10&ano=2026", "/lancamentos/csv")
         self.assertIn('filename="horas-extras-2026-10.csv"',
                       resposta.headers["Content-Disposition"])
 
@@ -908,9 +954,9 @@ class TestRelatorioPorPeriodo(BaseWeb):
 
     def test_link_do_csv_leva_o_periodo(self):
         html = self.pede("de=2026-10-05&ate=2026-10-20").get_data(as_text=True)
-        self.assertIn("/relatorios/csv?", html)
-        self.assertIn("de=2026-10-05", html.split("/relatorios/csv?", 1)[1].split('"', 1)[0])
-        self.assertIn("ate=2026-10-20", html.split("/relatorios/csv?", 1)[1].split('"', 1)[0])
+        self.assertIn("/lancamentos/csv?", html)
+        self.assertIn("de=2026-10-05", html.split("/lancamentos/csv?", 1)[1].split('"', 1)[0])
+        self.assertIn("ate=2026-10-20", html.split("/lancamentos/csv?", 1)[1].split('"', 1)[0])
 
 
 class TestBotoesSoComIcone(BaseWeb):
@@ -938,7 +984,7 @@ class TestBotoesSoComIcone(BaseWeb):
         ("alexandre", "/cadastros/usuarios/novo", HX),
         ("alexandre", "/cadastros/usuarios/2/editar", HX),
         ("alexandre", "/cadastros/usuarios/novo", {}),
-        ("veridiana", "/relatorios?mes=10&ano=2026", {}),
+        ("veridiana", "/lancamentos/?mes=10&ano=2026", {}),
         ("veridiana", "/relatorios/resumo?mes=10&ano=2026", {}),
         ("fernando", "/lancamentos/novo", {}),  # 403: pagina de erro com botao
     ]
@@ -973,7 +1019,6 @@ class TestBotoesSoComIcone(BaseWeb):
         self.entrar("fernando")
         html = self.cliente.get("/aprovacoes/?mes=10&ano=2026&status=").get_data(as_text=True)
         self.assertIn('name="valor" value="Aprovado"', html)
-        self.assertIn('name="valor" value="Rejeitado"', html)
         self.assertIn('name="valor" value="Autorizada"', html)
         self.assertIn('name="valor" value="Negada"', html)
 
@@ -1435,22 +1480,17 @@ class TestRelatorioResumo(BaseWeb):
             "fechado_em": "11/10/2026 10:00", "reaberto_por": "", "reaberto_em": "", "motivo": ""})
         self.assertIn("Mês fechado", self.pede().get_data(as_text=True))
 
-    # --------------------------------------------------------- abas e ligacoes
-    def test_as_duas_paginas_tem_as_abas_e_marcam_a_atual(self):
-        resumo = self.pede("mes=10&ano=2026&unidade=Detran").get_data(as_text=True)
-        detalhado = self.pede("mes=10&ano=2026&unidade=Detran", "/relatorios").get_data(as_text=True)
-        for html in (resumo, detalhado):
-            self.assertIn('aria-label="Tipo de relatório"', html)
-            self.assertIn(">Detalhado</a>", html)
-            self.assertIn(">Resumo</a>", html)
-            # A aba leva o periodo e a unidade escolhidos.
-            self.assertIn("unidade=Detran", html.split('aria-label="Tipo de relatório"', 1)[1].split("</nav>", 1)[0])
-        self.assertRegex(resumo, r'class="aba ativa"\s+aria-current="page"\s+href="/relatorios/resumo\?')
-        self.assertRegex(detalhado, r'class="aba ativa"\s+aria-current="page"\s+href="/relatorios\?')
+    # --------------------------------------------------------- ligacoes
+    def test_resumo_nao_tem_mais_abas_e_o_menu_aponta_para_ele(self):
+        html = self.pede("mes=10&ano=2026&unidade=Detran").get_data(as_text=True)
+        self.assertNotIn('aria-label="Tipo de relatório"', html)
+        self.assertNotIn(">Detalhado</a>", html)
+        self.assertIn('href="/relatorios/resumo">Resumo</a>', html)
+        self.assertNotIn(">Relatórios</a>", html)
 
-    def test_o_nome_leva_ao_detalhado_do_funcionario_no_mesmo_periodo_e_situacao(self):
+    def test_o_nome_leva_aos_lancamentos_do_funcionario_no_mesmo_periodo_e_situacao(self):
         html = self.pede("de=2026-10-01&ate=2026-10-31").get_data(as_text=True)
-        link = re.search(r'href="(/relatorios\?[^"]*prontuario=48906[^"]*)"', html).group(1).replace("&amp;", "&")
+        link = re.search(r'href="(/lancamentos/\?[^"]*prontuario=48906[^"]*)"', html).group(1).replace("&amp;", "&")
         self.assertIn("de=2026-10-01", link)
         self.assertIn("ate=2026-10-31", link)
         self.assertIn("status=Aprovado", link)
@@ -1501,14 +1541,20 @@ class TestRelatorioResumo(BaseWeb):
 
     def test_impressao_esconde_o_que_nao_e_relatorio(self):
         html = self.pede().get_data(as_text=True)
-        self.assertIn('class="abas nao-imprimir"', html)
         self.assertIn('class="sub nao-imprimir"', html)
         self.assertIn("window.print()", html)
         css = open(os.path.join(os.path.dirname(__file__), "..", "app", "static", "estilo.css"),
                    encoding="utf-8").read()
         regra = css.split("@media print", 1)[1]
         self.assertIn(".nao-imprimir", regra)
-        self.assertIn(".abas", regra)
+
+    def test_lancamentos_imprime_so_a_tabela(self):
+        self.entrar("fernando")
+        html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
+        self.assertIn("window.print()", html)
+        # Os botoes de decisao saem da impressao e a etiqueta da situacao entra.
+        self.assertIn('<div class="nao-imprimir">', html)
+        self.assertIn('class="so-impressao"', html)
 
 
 class TestPlantonista(BaseWeb):
@@ -1552,7 +1598,7 @@ class TestFiltroPorFuncionario(BaseWeb):
         for login, rota in (
             ("flavio", "/lancamentos/"),
             ("fernando", "/aprovacoes/"),
-            ("veridiana", "/relatorios"),
+            ("veridiana", "/lancamentos/"),
         ):
             self.cliente.get("/logout")
             self.entrar(login)
@@ -1566,9 +1612,9 @@ class TestFiltroPorFuncionario(BaseWeb):
         self.assertNotIn("<strong>Anderson</strong>", html)
         self.cliente.get("/logout")
         self.entrar("veridiana")
-        html = self.cliente.get("/relatorios?prontuario=48906").get_data(as_text=True)
+        html = self.cliente.get("/lancamentos/?prontuario=48906").get_data(as_text=True)
         self.assertNotIn("<strong>Alexandre P. S. Raia</strong>", html)
-        csv = self.cliente.get("/relatorios/csv?prontuario=48906").get_data(as_text=True)
+        csv = self.cliente.get("/lancamentos/csv?prontuario=48906").get_data(as_text=True)
         self.assertIn("48906", csv)
         self.assertNotIn("25755", csv)
 
@@ -1681,7 +1727,7 @@ class TestSeparacaoDeFuncoes(BaseWeb):
 class TestTelas(BaseWeb):
     def test_telas_de_consulta_renderizam(self):
         self.entrar("flavio")
-        for rota in ("/", "/lancamentos/", "/lancamentos/novo", "/relatorios"):
+        for rota in ("/", "/lancamentos/", "/lancamentos/novo", "/lancamentos/"):
             resposta = self.cliente.get(rota, follow_redirects=True)
             self.assertEqual(resposta.status_code, 200, rota)
 
@@ -1697,7 +1743,7 @@ class TestTelas(BaseWeb):
 
     def test_exportacao_csv(self):
         self.entrar("veridiana")
-        resposta = self.cliente.get("/relatorios/csv?ano=2026&mes=10")
+        resposta = self.cliente.get("/lancamentos/csv?ano=2026&mes=10")
         self.assertEqual(resposta.status_code, 200)
         texto = resposta.get_data(as_text=True)
         self.assertIn("Horas excedidas", texto)
@@ -1716,12 +1762,44 @@ class TestBotoesDeDecisao(BaseWeb):
         self.assertEqual(payload[S.F["lanc_status"]], "Aprovado")
         self.assertNotIn(S.F["lanc_hc_status"], payload)
 
-    def test_botao_reprovar_horas(self):
+    def test_reprovar_horas_com_justificativa_grava_o_parecer(self):
         self.entrar("fernando")
-        self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado"},
-                          follow_redirects=True)
+        self.cliente.post("/aprovacoes/100/horas",
+                          data={"valor": "Rejeitado", "parecer": "  fora da escala "},
+                          headers=HX, follow_redirects=True)
         _, _, payload = self.repo.gravacoes[-1]
         self.assertEqual(payload[S.F["lanc_status"]], "Rejeitado")
+        self.assertEqual(payload[S.F["lanc_parecer"]], "fora da escala")
+        self.assertTrue(payload[S.F["lanc_decidido_por"]])
+
+    def test_reprovar_sem_justificativa_devolve_o_modal_e_nao_grava(self):
+        self.entrar("fernando")
+        resposta = self.cliente.post("/aprovacoes/100/horas",
+                                     data={"valor": "Rejeitado", "parecer": "   "}, headers=HX)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.headers["HX-Retarget"], "#modal-corpo")
+        self.assertIn("Informe a justificativa", resposta.get_data(as_text=True))
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_reprovar_sem_htmx_e_sem_justificativa_vai_para_a_tela_de_decisao(self):
+        self.entrar("fernando")
+        resposta = self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado"})
+        self.assertEqual(resposta.status_code, 302)
+        self.assertIn("/aprovacoes/100", resposta.headers["Location"])
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_modal_de_rejeicao_abre_com_o_campo_de_justificativa(self):
+        self.entrar("fernando")
+        resposta = self.cliente.get("/aprovacoes/100/rejeitar", headers=HX)
+        html = resposta.get_data(as_text=True)
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('name="parecer"', html)
+        self.assertIn("data-fecha-ao-sucesso", html)
+        self.assertEqual(self.repo.gravacoes, [])
+
+    def test_so_o_gestor_abre_o_modal_de_rejeicao(self):
+        self.entrar("flavio")
+        self.assertEqual(self.cliente.get("/aprovacoes/100/rejeitar").status_code, 403)
 
     def test_autorizar_hc_na_linha_confirma_sem_mudar_o_excedente(self):
         self.entrar("fernando")
@@ -1758,7 +1836,9 @@ class TestBotoesDeDecisao(BaseWeb):
         html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
         self.assertEqual(html.count('name="valor" value="Aprovado"'), 2)  # 100 e 102
         # 101 ja aprovado: so a opcao contraria, escondida no "alterar".
-        self.assertEqual(html.count('name="valor" value="Rejeitado"'), 3)
+        # Reprovar abre o modal da justificativa em vez de gravar com um clique.
+        self.assertEqual(html.count('name="valor" value="Rejeitado"'), 0)
+        self.assertEqual(html.count("pede a justificativa do gestor"), 3)
         self.assertEqual(html.count("<summary>alterar</summary>"), 2)
         self.assertEqual(html.count('name="valor" value="Autorizada"'), 1)  # so 100
         self.assertIn("Não pedida", html)
@@ -1901,7 +1981,8 @@ class TestFechamento(BaseWeb):
         self.como("alexandre")
         self.cliente.post("/fechamento/2026/10/reabrir", data={"motivo": "ajuste combinado"})
         self.como("fernando")
-        self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado"})
+        self.cliente.post("/aprovacoes/100/horas",
+                          data={"valor": "Rejeitado", "parecer": "x"})
         self.assertEqual(self.repo.gravacoes[-1][0], "atualizar")
 
     def test_rh_nao_lanca_edita_nem_exclui_em_mes_fechado(self):
@@ -1921,7 +2002,7 @@ class TestFechamento(BaseWeb):
     def test_gestor_nao_decide_em_mes_fechado(self):
         self.fecha_outubro()
         self.como("fernando")
-        self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado"})
+        self.cliente.post("/aprovacoes/100/horas", data={"valor": "Rejeitado", "parecer": "x"})
         self.cliente.post("/aprovacoes/100/hc", data={"valor": "Negada"})
         self.cliente.post("/aprovacoes/100", data={"decisao": "Rejeitado", "parecer": "x", "hc_decisao": "Negada"})
         self.assertEqual(self.repo.gravacoes, [])
@@ -1950,7 +2031,7 @@ class TestFechamento(BaseWeb):
         html = self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True)
         self.assertNotIn("/editar", html)
         self.assertIn("Mês fechado", html)
-        self.assertIn("Mês fechado", self.cliente.get("/relatorios?mes=10&ano=2026").get_data(as_text=True))
+        self.assertIn("Mês fechado", self.cliente.get("/lancamentos/?mes=10&ano=2026").get_data(as_text=True))
 
     def test_pagina_de_fechamento_para_todos_os_perfis(self):
         for login in ("flavio", "fernando", "veridiana", "alexandre"):

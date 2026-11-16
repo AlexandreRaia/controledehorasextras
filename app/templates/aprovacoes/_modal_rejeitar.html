@@ -1,0 +1,31 @@
+{% import "macros.html" as m %}
+<div id="rejeitar-conteudo">
+  <h1>Rejeitar horas</h1>
+  <p class="sub">{{ item.funcionario or item.prontuario }} em {{ item.data_br }}
+    · excedente {{ item.excedidas_seg | dur }}</p>
+
+  {% if erro %}<div class="avisos"><div class="aviso aviso-erro">{{ erro }}</div></div>{% endif %}
+
+  {% set grupo = 'g-' ~ ((item.prontuario or item.funcionario) | ident) %}
+  <form class="cartao" method="post" action="{{ url_for('aprovacoes.decidir_horas', row_id=item.id) }}"
+        hx-post="{{ url_for('aprovacoes.decidir_horas', row_id=item.id) }}"
+        hx-target="#{{ grupo }}" hx-swap="outerHTML" hx-select="#{{ grupo }}"
+        hx-select-oob="#avisos,#total-geral" hx-disabled-elt="find button[type=submit]"
+        data-fecha-ao-sucesso>
+    <input type="hidden" name="voltar" value="{{ voltar }}">
+    <input type="hidden" name="valor" value="Rejeitado">
+    <div class="linha">
+      <div class="campo">
+        <label for="parecer">Justificativa do gestor</label>
+        <textarea id="parecer" name="parecer" required autofocus>{{ parecer }}</textarea>
+        <span class="dica">Obrigatória. Fica registrada no lançamento.</span>
+      </div>
+    </div>
+    <div class="acoes">
+      <button class="botao perigo so-icone" type="submit" title="Confirmar a rejeição"
+              aria-label="Confirmar a rejeição">{{ m.icone('nao') }}</button>
+      <button class="botao secundario so-icone" type="button" title="Cancelar" aria-label="Cancelar"
+              onclick="document.getElementById('modal').close()">{{ m.icone('voltar') }}</button>
+    </div>
+  </form>
+</div>

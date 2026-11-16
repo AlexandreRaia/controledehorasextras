@@ -16,6 +16,15 @@
     if (m && m.open) m.close();
   });
 
+  // Formularios marcados com data-fecha-ao-sucesso fecham o modal quando o servidor
+  // aceita a gravacao. Se o servidor devolve o erro no proprio modal (HX-Retarget),
+  // ele continua aberto.
+  document.addEventListener('htmx:afterRequest', function (e) {
+    var m = modal(), d = e.detail;
+    if (!m || !m.open || !d || !d.elt || !d.elt.hasAttribute('data-fecha-ao-sucesso')) return;
+    if (d.successful && !d.xhr.getResponseHeader('HX-Retarget')) m.close();
+  });
+
   // Clicar no fundo escuro, fora da caixa, tambem fecha.
   document.addEventListener('click', function (e) {
     if (e.target && e.target.id === 'modal') e.target.close();

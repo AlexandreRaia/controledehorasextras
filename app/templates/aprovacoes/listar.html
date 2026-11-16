@@ -6,7 +6,7 @@
 
 <h1>Aprovações</h1>
 <p class="sub">
-  Cada botão grava na hora. Aprovar ou reprovar decide as horas excedentes.
+  Cada botão grava na hora. Aprovar ou reprovar decide as horas excedentes; ao reprovar, o sistema pede a justificativa.
   A hora corrida pedida pelo RH já conta como excedente; negá-la devolve o
   desconto do almoço e o cálculo é refeito. Para mudar uma decisão já tomada,
   use "alterar".
@@ -121,4 +121,7 @@
     </tfoot>
   </table>
 </div>
+
+{# A justificativa da rejeicao abre aqui, sem sair da lista. #}
+<dialog id="modal" class="modal"><div id="modal-corpo"></div></dialog>
 {% endblock %}

@@ -3,7 +3,9 @@
 O gestor grava apenas Status, HC Status, Parecer e a trilha de quem decidiu.
 Entrada, saida, data e funcionario pertencem ao RH e nunca sao tocados aqui.
 """
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint, flash, make_response, redirect, render_template, request, url_for,
+)
 
 from .. import get_repo
 from .. import schema as S
@@ -146,10 +148,39 @@ def decidir(row_id):
     return render_template("aprovacoes/decidir.html", item=item)
 
 
+def _htmx():
+    return request.headers.get("HX-Request") == "true"
+
+
+def _modal_rejeicao(item, erro="", parecer=""):
+    """Fragmento do modal em que o gestor justifica a rejeicao das horas."""
+    resposta = make_response(render_template(
+        "aprovacoes/_modal_rejeitar.html", item=item, erro=erro, parecer=parecer,
+        voltar=_de_volta(),
+    ))
+    if erro:
+        # O erro fica dentro do modal: o htmx nao pode trocar a lista por ele.
+        resposta.headers["HX-Retarget"] = "#modal-corpo"
+        resposta.headers["HX-Reswap"] = "innerHTML"
+        resposta.headers["HX-Reselect"] = "#rejeitar-conteudo"
+    return resposta
+
+
+@bp.route("/<int:row_id>/rejeitar")
+@perfil_required(PERFIL_GESTOR)
+def rejeitar(row_id):
+    """Abre o modal de justificativa; nada e gravado aqui."""
+    item = get_repo().lancamento(row_id)
+    return _modal_rejeicao(item, parecer=item["parecer"] if item["status"] == "Rejeitado" else "")
+
+
 @bp.route("/<int:row_id>/horas", methods=["POST"])
 @perfil_required(PERFIL_GESTOR)
 def decidir_horas(row_id):
-    """Botao de aprovar ou reprovar as horas excedentes, direto na lista."""
+    """Aprovar ou rejeitar as horas excedentes, direto na lista.
+
+    Rejeitar exige a justificativa do gestor, que fica gravada como parecer.
+    """
     repo = get_repo()
     valor = request.form.get("valor")
     if valor not in STATUS_VALIDOS:
@@ -157,7 +188,15 @@ def decidir_horas(row_id):
         return redirect(_de_volta())
 
     item = repo.lancamento(row_id)
-    _grava_decisao(repo, item, status=valor)
+    parecer = None
+    if valor == "Rejeitado":
+        parecer = (request.form.get("parecer") or "").strip()
+        if not parecer:
+            if _htmx():
+                return _modal_rejeicao(item, erro="Informe a justificativa da rejeicao.")
+            flash("Informe o motivo da rejeicao.", "erro")
+            return redirect(url_for("aprovacoes.decidir", row_id=row_id))
+    _grava_decisao(repo, item, status=valor, parecer=parecer)
     flash(
         f"{item['funcionario'] or item['prontuario']} em {item['data_br']}: "
         f"horas {'aprovadas' if valor == 'Aprovado' else 'rejeitadas'}.",

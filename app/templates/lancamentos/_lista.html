@@ -1,5 +1,5 @@
 {% import "macros.html" as m %}
-{% set colunas = 11 if pode_lancar else 10 %}
+{% set colunas = 13 if pode_lancar else 12 %}
 {# Regiao inteira que o modal troca depois de salvar, sem recarregar a pagina. #}
 <div id="lista">
 {% if avisos_na_lista %}
@@ -20,7 +20,8 @@
         <th class="num">Permanência</th><th class="num">Almoço</th>
         <th class="num">Trabalhadas</th><th class="num">Excedentes</th>
         <th>Status</th><th>HC</th><th>Lançado por</th>
-        {% if pode_lancar %}<th>Ações</th>{% endif %}
+        <th>Decidido por</th><th>Parecer do gestor</th>
+        {% if pode_lancar %}<th class="nao-imprimir">Ações</th>{% endif %}
       </tr>
     </thead>
     {% for g in grupos %}
@@ -43,17 +44,21 @@
         <td class="num">{{ i.excedidas_seg | dur }}{{ m.marca_ajuste(i) }}</td>
         <td>
           {% if pode_decidir %}
-            {{ m.decidir_horas(i, voltar) }}
+            <div class="nao-imprimir">{{ m.decidir_horas(i, voltar) }}</div>
+            <span class="so-impressao">{{ m.etiqueta_status(i.status) }}</span>
           {% else %}{{ m.etiqueta_status(i.status) }}{% endif %}
         </td>
         <td>
           {% if pode_decidir %}
-            {{ m.decidir_hc(i, voltar) }}
+            <div class="nao-imprimir">{{ m.decidir_hc(i, voltar) }}</div>
+            <span class="so-impressao">{{ m.etiqueta_hc(i) }}</span>
           {% else %}{{ m.etiqueta_hc(i) }}{% endif %}
         </td>
         <td>{{ i.lancado_por }}</td>
+        <td>{{ i.decidido_por }}</td>
+        <td class="parecer">{{ i.parecer }}</td>
         {% if pode_lancar %}
-        <td>
+        <td class="nao-imprimir">
           {% if i.fechado %}
           <span class="dica">Mês fechado</span>
           {% else %}
