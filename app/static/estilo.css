@@ -318,7 +318,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 tr.inativo td { color: var(--suave); }
 tr.inativo td strong { color: var(--suave); }
 
-td.parecer { min-width: 160px; max-width: 280px; white-space: normal; overflow-wrap: anywhere; }
+/* Lista de lancamentos: tudo em uma linha por registro, sem rolagem lateral.
+   A pagina fica mais larga e a tabela mais compacta; so o parecer quebra linha. */
+.conteudo:has(.tabela-lancamentos) { max-width: 1720px; }
+.tabela-lancamentos { font-size: 13px; }
+.tabela-lancamentos th, .tabela-lancamentos td { padding: 7px 6px; white-space: nowrap; }
+.tabela-lancamentos tr.grupo td, .tabela-lancamentos tr.subtotal td { white-space: normal; }
+.tabela-lancamentos td.parecer { white-space: normal; min-width: 140px; max-width: 260px; overflow-wrap: anywhere; }
+.tabela-lancamentos .acoes, .tabela-lancamentos .decisao { flex-wrap: nowrap; }
 
 .link-discreto { color: inherit; font-weight: 600; }
 .link-discreto:hover { color: var(--primaria); }
