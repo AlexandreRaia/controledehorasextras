@@ -322,7 +322,14 @@ tr.inativo td strong { color: var(--suave); }
    A pagina fica mais larga e a tabela mais compacta; so o parecer quebra linha. */
 .conteudo:has(.tabela-lancamentos) { max-width: 1720px; }
 .tabela-lancamentos { font-size: 13px; }
-.tabela-lancamentos th, .tabela-lancamentos td { padding: 7px 6px; white-space: nowrap; }
+.tabela-lancamentos th, .tabela-lancamentos td { padding: 7px 5px; white-space: nowrap; }
+/* Editar e excluir ficam sempre a vista, mesmo se a tabela ainda precisar de rolagem. */
+.tabela-lancamentos .col-acoes {
+  position: sticky; right: 0; z-index: 1; background: var(--papel);
+  box-shadow: -8px 0 8px -8px rgba(15, 23, 42, .25);
+}
+.tabela-lancamentos th.col-acoes { background: #eef2f7; }
+.tabela-lancamentos tbody tr:hover td.col-acoes { background: #f8fafc; }
 .tabela-lancamentos tr.grupo td, .tabela-lancamentos tr.subtotal td { white-space: normal; }
 .tabela-lancamentos td.parecer { white-space: normal; min-width: 140px; max-width: 260px; overflow-wrap: anywhere; }
 .tabela-lancamentos .acoes, .tabela-lancamentos .decisao { flex-wrap: nowrap; }
